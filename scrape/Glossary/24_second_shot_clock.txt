@@ -1,0 +1,107 @@
+Term: 24-second shot clock
+
+--- Concise Definition ---
+24-second shot clock : Digital device that begins at a countdown of 24 seconds and continues until it reaches its final number of 0.
+
+--- Detailed Explanation ---
+Table of Contents
+
+- What is the 24-second shot clock in basketball?
+
+- What is a typical outcome when the 24-second shot clock reaches zero?
+
+- What is the general time when the 24-second shot clock starts?
+
+- What is the general time when the 24-second shot clock stops?
+
+- What are notable leagues/organizations that implement the 24-second shot clock?
+
+- What is the general function of the 24-second shot clock when team possession changes with less than 24 seconds in the game?
+
+- What are potential instances when the 24-second shot clock could reset to 24 or 14 seconds?
+
+What is the 24-second shot clock in basketball?
+
+The 24-second shot clock is a digital device that begins at a countdown of 24 seconds and continues until it reaches its final number of 0.
+
+Additionally, the 24-second shot clock rule in the game of basketball requires an offensive team to attempt afield goalwithin 24 seconds of their current possession.
+
+What is a typical outcome when the 24-second shot clock reaches zero?
+
+When the 24-second shot clock reaches zero on the timer, the device will usually sound an alarm, typically in the form of a horn that would also be unique in relation to the scoreboard’s or game clock’s audible sound, which normally consists of an alternative buzzer type of sound.
+
+From that point, if the offensive team in possession of the ball did not attempt a properfield goal, particularly one that made contact with the rim, then that would lead to a penalty for breaking the 24-second shot clock rule, which is a shot clock violation.
+
+Once a shot clock violation occurs, the team that failed to attempt the valid field goal in time would lose possession of the ball viaturnoverto the opposing team, who would typically receive it at the nearest sideline where the play was stopped but not as close to thebaselineas the free throw line extended.
+
+What is the general time when the 24-second shot clock starts?
+
+In general, the 24-second shot clock starts once a player gains possession of the basketball, which also means that same player’s team is in control of the ball
+
+Afterwards, the offensive player in possession of the ball as well as other offensive teammates on the court would then have 24 seconds to attempt a field goal before the 24-second shot clock reaches zero.
+
+Nevertheless, it should be stated that during a throw-in, also known as aninbound pass, the shot clock starts when the ball comes in legal contact by any player on the court.
+
+In other words, during the throw-in, a player does not necessarily need to gain full control of the ball to start/continue the 24-second shot clock.
+
+Also, after a jump ball or missed free throw, the 24-second shot clock starts or continues again once any player on the court is in control of the ball.
+
+What is the general time when the 24-second shot clock stops?
+
+Generally speaking, the 24-second shot clock stops when a defensive player is the last to touch the ball and at the same time, the ball goes out of bounds or gets batted into the basket ring from below.
+
+If that happens, the offensive team should receive the ball for a throw-in opportunity but the 24-second shot clock should not reset either.
+
+Essentially, the offensive team would have whatever time was remaining on the shot clock before the defensive team last touched the ball.
+
+However, it should be noted though that if the 24-second shot clock reaches 0 at the same time the defensive team touches the ball last, it would still result in a shot clock violation.
+
+What are notable leagues/organizations that implement the 24-second shot clock?
+
+The 24-secondshot clockis primarily implemented in professional leagues such as theNational Basketball Association, also known as the NBA, theWomen’s National Basketball Association, also referred to as the WNBA, as well as within theInternational Basketball Federation, commonly abbreviated as FIBA.
+
+What is the general function of the 24-second shot clock when team possession changes with less than 24 seconds in the game?
+
+In general, if there are less than 24 seconds remaining on the game clock in aperiodof play, then the 24-second shot clock should not be active during a change of possession from one team to another.
+
+As a brief example, let’s say that Team A has possession of the ball with 27 seconds remaining on the game clock in a quarter while there are 12 seconds counting down on the shot clock.
+
+Afterwards, let’s say that Team A attempts a field goal four seconds later with 23 seconds remaining on the game clock.
+
+Next, let’s say that Team B secures the ball via a defensive rebound. At that point, Team B is in control of the ball but since there are less than 24 seconds remaining in the period of play, the 24-second shot clock would not be active at that time.
+
+Related:RULE NO. 7: Shot Clock – NBA Official Rulebook
+
+What are potential instances when the 24-second shot clock could reset to 24 or 14 seconds?
+
+This section contains potential instances when the 24-second shot clock could reset to either 24 seconds or 14 seconds, depending on the situation.
+
+Change of possession
+
+The 24-second shot clock could reset to 24 seconds when possession of the ball changes from one team to the other team.
+
+Personal foul or other types of violations during inbound pass in the backcourt
+
+The 24-second shot clock could reset to 24 seconds when a person foul or other types of violations occur during an inbound pass in the backcourt.
+
+Certain types of jump ball situations
+
+The 24-second shot clock could reset to 24 seconds during certain types of jump ball situations that are not the result of a held ball caused by the defensive team.
+
+Flagrant fouls
+
+The 24-second shot clock could reset to 24 seconds whenflagrant foulsoccur during the basketball game.
+
+Offensive team gains possession of the ball following missed free throw or field goal attempt
+
+The 24-second shot clock could reset to 14 seconds when the offensive team is the first to gain possession of the ball, typically via offensive rebound, after a missed free throw attempt that stays in play or a missed field goal attempt that touches the basket ring.
+
+Offensive team keeps possession of the ball after it goes out of bounds following missed free throw or field goal attempt
+
+The 24-second shot clock could reset to 14 seconds when the offensive team is able to keep possession of the ball after it goes out of bounds following a missed free throw attempt that stays in play or after a missed field goal attempt that touches the basket ring.
+
+Loose ball foul on the defense
+
+The 24-second shot clock could reset to 14 seconds when the defensive team gets called for aloose ball foulduring the time of a missed free throw attempt that stays in play or a missed field goal attempt that touches the basket ring.
+
+This applies when, as a result of the loose ball foul, the offensive team is able to execute an inbound pass in their frontcourt.

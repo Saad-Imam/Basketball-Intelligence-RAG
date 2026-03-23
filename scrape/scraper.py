@@ -3,6 +3,7 @@ import os
 import re
 import time
 import requests
+import json
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
@@ -29,7 +30,7 @@ def sanitize_filename(term_name):
     name = re.sub(r'[\s\-]+', '_', term_name.strip())
     # Remove any character that isn't alphanumeric or an underscore
     name = re.sub(r'[^\w_]', '', name)
-    return name
+    return name.lower()
 
 def get_soup(url):
     """
@@ -94,88 +95,114 @@ def parse_hub_page(hub_url):
 
 def extract_detailed_content(detail_url):
     """
-    Visits the detail page and extracts text strictly from the main article body.
-    Captures paragraphs, lists, and image alt texts.
+    Extracts content dynamically into sections based on H2/H3 headers.
+    Returns the combined text AND the structured section list.
     """
     soup = get_soup(detail_url)
     if not soup:
-        return "Failed to retrieve detailed explanation."
+        return "",[]
         
-    # Strictly target the main article body
     article_body = soup.find('article') or soup.find(class_=re.compile(r'entry-content|post-content'))
     
     if not article_body:
-        return "Could not locate main article content."
+        return "",[]
 
-    content_parts =[]
-    
-    # Extract specific tags in order to keep the RAG context clean and sequential
+    sections = []
+    current_heading = "Introduction"
+    current_parts =[]
+
     for element in article_body.find_all(['p', 'ul', 'ol', 'img', 'h2', 'h3']):
-        
+        # When hitting a new heading, save the previous section
+        if element.name in ['h2', 'h3']:
+            if current_parts:
+                section_text = "\n\n".join(current_parts).strip()
+                # Skip Table of Contents sections
+                if not section_text.startswith("Table of Contents"):
+                    sections.append({
+                        "heading": current_heading,
+                        "text": section_text
+                    })
+            current_heading = element.get_text(strip=True)
+            current_parts = []
+            
         # Extract Image Alt Text
-        if element.name == 'img':
+        elif element.name == 'img':
             alt_text = element.get('alt', '').strip()
             if alt_text:
-                content_parts.append(f"[Image Alt Text: {alt_text}]")
+                current_parts.append(f"[Image Alt Text: {alt_text}]")
                 
         # Format Lists cleanly
         elif element.name in ['ul', 'ol']:
             for li in element.find_all('li'):
-                content_parts.append(f"- {li.get_text(strip=True)}")
+                current_parts.append(f"- {li.get_text(strip=True)}")
                 
-        # Format Text (Paragraphs, Headings)
+        # Format Text (Paragraphs)
         else:
             text = element.get_text(strip=True)
             if text:
-                content_parts.append(text)
-                
-    # Join everything into a cohesive detailed explanation
-    return "\n\n".join(content_parts)
+                current_parts.append(text)
+
+    # Don't forget to append the final section
+    if current_parts:
+        sections.append({
+            "heading": current_heading,
+            "text": "\n\n".join(current_parts).strip()
+        })
+
+    # Combine all section text for the 'detailed_explanation' field
+    full_text = "\n\n".join([s['text'] for s in sections])
+    return full_text, sections
 
 # --- MAIN ORCHESTRATION ---
 
 def main():
-    print("Starting HoopStudent Scraper for RAG...\n")
-    
+    print("Starting HoopStudent JSON Scraper for RAG...\n")
+
     for category_name, hub_url in CATEGORIES.items():
         print(f"=== Processing Category: {category_name} ===")
-        
-        # Create the category folder if it doesn't exist
         os.makedirs(category_name, exist_ok=True)
         
-        # Step 1: Scrape Hub Page
         print(f"Fetching terms from {hub_url}...")
         terms = parse_hub_page(hub_url)
         print(f"Found {len(terms)} terms in {category_name}.\n")
         
-        # Step 2: Iterate through terms, scrape details, and save
         for idx, term_data in enumerate(terms, 1):
             term_name = term_data['term']
             concise_def = term_data['concise_def']
             detail_url = term_data['url']
             
-            filename = sanitize_filename(term_name) + ".txt"
+            safe_name = sanitize_filename(term_name)
+            filename = safe_name + ".json"
             filepath = os.path.join(category_name, filename)
             
             print(f"[{idx}/{len(terms)}] Scraping detail for: {term_name}")
             
-            # Scrape detailed page
-            detailed_explanation = extract_detailed_content(detail_url)
+            # Scrape and chunk detailed page
+            detailed_explanation, sections = extract_detailed_content(detail_url)
             
-            # Step 3: Format and save the data
-            file_content = f"Term: {term_name}\n\n"
-            file_content += f"--- Concise Definition ---\n{concise_def}\n\n"
-            file_content += f"--- Detailed Explanation ---\n{detailed_explanation}\n"
+            # Structure the JSON document
+            doc = {
+                "doc_id": f"hoopstudent_{category_name.lower()}_{safe_name}",
+                "term": term_name,
+                "category": category_name,
+                "source_url": detail_url,
+                "layer": 2,  # Layer 2 = Plays & Actions
+                "source_site": "hoopstudent",
+                "concise_definition": concise_def,
+                # "detailed_explanation": detailed_explanation, # we don't need it since we will retrieve based on sections
+                "sections": sections
+            }
             
-            with open(filepath, 'w', encoding='utf-8') as file:
-                file.write(file_content)
+            # Write to JSON file
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(doc, f, ensure_ascii=False, indent=2)
                 
-            # Politeness delay: wait 1.5 seconds between page loads to avoid being blocked
+            # Politeness delay
             time.sleep(1.5)
             
         print(f"Finished processing {category_name}!\n")
 
-    print("Scraping completed successfully! Your dataset is ready.")
+    print("Scraping completed successfully! Your JSON dataset is ready.")
 
 if __name__ == "__main__":
     main()

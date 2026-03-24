@@ -1,26 +1,3 @@
-"""
-pinecone_indexing.py
-====================
-Loads preprocessed chunk JSON files, generates BGE-M3 dense + sparse
-embeddings locally, and upserts everything into a single Pinecone
-hybrid index.
-
-What this script does:
-  1. Loads all chunk JSON files from the corpus/ directory
-     (layer1 rulebook chunks + layer2 hoopstudent chunks, etc.)
-  2. Generates BOTH dense and sparse vectors using BGE-M3 in one pass
-     (no separate BM25 encoder needed — BGE-M3 does both natively)
-  3. Creates a single Pinecone hybrid index (dimension=1024, metric=dotproduct)
-  4. Upserts all chunks in batches with their metadata
-
-Usage:
-  pip install FlagEmbedding pinecone-client python-dotenv
-  python pinecone_indexing.py
-
-Environment variables (create a .env file):
-  PINECONE_API_KEY=your_key_here
-"""
-
 import json
 import os
 import time
@@ -33,50 +10,34 @@ from pinecone import Pinecone, ServerlessSpec
 
 load_dotenv()
 
-# ---------------------------------------------------------------------------
-# CONFIG
-# ---------------------------------------------------------------------------
-
-# All chunk JSON files to index — add new ones here as you process more sources
 CHUNK_FILES = [
-    "corpus/processed_rulebook/layer1_rulebook_chunks.json",
-    "corpus/processed_hoopstudent/layer2_hoopstudent_chunks.json",
-    # "corpus/processed_articles/layer3_strategy_chunks.json",  # add later
+    "corpus/processed/layer1_rulebook_chunks.json",
+    "corpus/processed/layer2_chunks.json"
 ]
 
 # Pinecone settings
-INDEX_NAME = "basketball-rag"        # name of your index in Pinecone
+INDEX_NAME = "basketball-rag-hybrid-bge"       
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 
 # BGE-M3 settings
 # use_fp16=True cuts memory usage roughly in half on GPU with minimal quality loss
 # On CPU, set use_fp16=False
 BGE_MODEL_NAME = "BAAI/bge-m3"
-USE_FP16 = True       # set False if running on CPU only
+USE_FP16 = False      # set False if running on CPU only
 
-# Batching
-# BGE-M3 is large (~2.2GB). On a GPU (Colab/Kaggle T4):
-#   - batch_size=16 works comfortably
-#   - batch_size=32 may OOM on 15GB VRAM depending on chunk length
+
 # On CPU:
 #   - batch_size=4 is safe, expect ~2-5 minutes per 100 chunks
-EMBED_BATCH_SIZE = 16
-
-# Pinecone upsert batch size — keep at 100 (Pinecone's recommended max per request)
+EMBED_BATCH_SIZE = 8
+# Pinecone upsert batch size 
 UPSERT_BATCH_SIZE = 100
-
-# BGE-M3's dense embedding dimension — fixed, do not change
+# BGE-M3's dense embedding dimension
 DENSE_DIMENSION = 1024
 
-# ---------------------------------------------------------------------------
 # STEP 1: Load all chunks from JSON files
-# ---------------------------------------------------------------------------
-
 def load_all_chunks(chunk_files: list[str]) -> list[dict]:
-    """
-    Loads and merges chunks from all JSON files.
-    Each chunk must have: chunk_id, text, metadata
-    """
+    
+    # Each chunk must have: chunk_id, text, metadata
     all_chunks = []
 
     for filepath in chunk_files:
@@ -93,27 +54,18 @@ def load_all_chunks(chunk_files: list[str]) -> list[dict]:
     print(f"\nTotal chunks loaded: {len(all_chunks)}")
     return all_chunks
 
-
-# ---------------------------------------------------------------------------
 # STEP 2: Generate BGE-M3 embeddings (dense + sparse in one pass)
-# ---------------------------------------------------------------------------
 
-def generate_embeddings(
-    model: BGEM3FlagModel,
-    texts: list[str],
-    batch_size: int = EMBED_BATCH_SIZE
-) -> tuple[list[list[float]], list[dict]]:
+
+def generate_embeddings( model: BGEM3FlagModel, texts: list[str], batch_size: int = EMBED_BATCH_SIZE
+                        ) -> tuple[list[list[float]], list[dict]]:
     """
     Runs BGE-M3 on a list of texts and returns:
       - dense_vectors:  list of 1024-float lists
       - sparse_vectors: list of dicts, each with 'indices' and 'values' lists
 
     BGE-M3 generates both in a SINGLE forward pass — no extra BM25 encoder needed.
-    The sparse output is a learned sparse representation (similar to SPLADE)
-    that outperforms traditional BM25 on most benchmarks.
-
     The return_dense and return_sparse flags tell the model what to compute.
-    We do NOT use return_colbert_vecs (multi-vector) — it's overkill for this project.
     """
     dense_vectors = []
     sparse_vectors = []
@@ -131,9 +83,9 @@ def generate_embeddings(
             batch_texts,
             return_dense=True,         # get 1024-dim dense vectors
             return_sparse=True,        # get learned sparse vectors (like SPLADE)
-            return_colbert_vecs=False, # skip multi-vector — not needed
+            return_colbert_vecs=False, 
             batch_size=batch_size,
-            max_length=512,            # match your MAX_TOKENS from preprocessing
+            max_length=512,            
         )
 
         # Dense vectors: shape (batch_size, 1024)
@@ -175,24 +127,10 @@ def generate_embeddings(
     return dense_vectors, sparse_vectors
 
 
-# ---------------------------------------------------------------------------
 # STEP 3: Create the Pinecone hybrid index
-# ---------------------------------------------------------------------------
+
 
 def create_pinecone_index(pc: Pinecone, index_name: str) -> None:
-    """
-    Creates a single Pinecone serverless index configured for hybrid search.
-
-    WHY these exact settings:
-    - dimension=1024: BGE-M3's fixed dense output size. Must match exactly.
-    - metric="dotproduct": THE ONLY metric that supports sparse-dense hybrid
-      queries in Pinecone. Using cosine or euclidean will cause an error at
-      query time when you pass sparse_vector.
-    - vector_type="dense": This is a dense index that ALSO supports sparse values.
-      Do NOT set vector_type="sparse" — that's a separate sparse-only index type.
-
-    The free Pinecone tier gives you 1 index and 2GB storage — enough for ~100k chunks.
-    """
     existing_indexes = [idx.name for idx in pc.list_indexes()]
 
     if index_name in existing_indexes:
@@ -200,9 +138,6 @@ def create_pinecone_index(pc: Pinecone, index_name: str) -> None:
         return
 
     print(f"  Creating index '{index_name}'...")
-    print(f"    dimension = {DENSE_DIMENSION}")
-    print(f"    metric    = dotproduct  (required for hybrid search)")
-    print(f"    cloud     = aws / us-east-1")
 
     pc.create_index(
         name=index_name,
@@ -221,32 +156,11 @@ def create_pinecone_index(pc: Pinecone, index_name: str) -> None:
 
     print(f"  Index '{index_name}' is ready.")
 
-
-# ---------------------------------------------------------------------------
 # STEP 4: Upsert all vectors to Pinecone
-# ---------------------------------------------------------------------------
-
-def upsert_to_pinecone(
-    pc: Pinecone,
-    index_name: str,
-    chunks: list[dict],
-    dense_vectors: list[list[float]],
-    sparse_vectors: list[dict],
+def upsert_to_pinecone(pc: Pinecone, index_name: str, chunks: list[dict], dense_vectors: list[list[float]], sparse_vectors: list[dict],
     batch_size: int = UPSERT_BATCH_SIZE
 ) -> None:
-    """
-    Upserts all chunk vectors to Pinecone in batches.
-
-    Each record in Pinecone has:
-    - id:            unique string (chunk_id)
-    - values:        dense vector (1024 floats)
-    - sparse_values: sparse vector (indices + values)
-    - metadata:      dict of fields for filtering and display
-
-    IMPORTANT: Pinecone metadata has a 40KB limit per record.
-    The chunk text is stored in metadata["text"] so we can display
-    it in the Streamlit UI without a separate database lookup.
-    """
+    
     index = pc.Index(index_name)
     total_batches = (len(chunks) + batch_size - 1) // batch_size
     total_upserted = 0
@@ -300,13 +214,9 @@ def upsert_to_pinecone(
         # Small delay to be polite to the API
         time.sleep(0.1)
 
-    print(f"\n✓ Upsert complete. Total vectors in index: {total_upserted}")
+    print(f"\n Upsert complete. Total vectors in index: {total_upserted}")
 
-
-# ---------------------------------------------------------------------------
 # STEP 5: Verify the index after upserting
-# ---------------------------------------------------------------------------
-
 def verify_index(pc: Pinecone, index_name: str) -> None:
     """
     Prints index stats to confirm everything was upserted correctly.
@@ -322,11 +232,6 @@ def verify_index(pc: Pinecone, index_name: str) -> None:
     print(f"Dimension:     {stats.dimension}")
     print(f"Namespaces:    {stats.namespaces}")
 
-
-# ---------------------------------------------------------------------------
-# MAIN
-# ---------------------------------------------------------------------------
-
 def main():
     # Validate API key
     if not PINECONE_API_KEY:
@@ -334,31 +239,25 @@ def main():
             "PINECONE_API_KEY not found. "
             "Create a .env file with PINECONE_API_KEY=your_key"
         )
-
-    # -----------------------------------------------------------------------
-    # Load chunks
-    # -----------------------------------------------------------------------
+    
     print("=" * 60)
     print("STEP 1: Loading chunks")
     print("=" * 60)
     all_chunks = load_all_chunks(CHUNK_FILES)
 
     if not all_chunks:
-        print("No chunks found. Run the preprocessing scripts first.")
+        print("No chunks found.")
         return
 
-    # Extract just the text for embedding (the enriched_text with context prefix)
+    # Extract just the text for embedding 
     texts = [chunk["text"] for chunk in all_chunks]
 
-    # -----------------------------------------------------------------------
-    # Load BGE-M3 model
-    # -----------------------------------------------------------------------
     print("\n" + "=" * 60)
     print("STEP 2: Loading BGE-M3 model")
     print("=" * 60)
     print(f"  Model: {BGE_MODEL_NAME}")
-    print(f"  FP16:  {USE_FP16}  (set False if on CPU)")
-    print("  This downloads ~2.2GB on first run...")
+    print(f"  FP16:  {USE_FP16} ")
+
 
     model = BGEM3FlagModel(
         BGE_MODEL_NAME,
@@ -366,15 +265,12 @@ def main():
     )
     print("  Model loaded.")
 
-    # -----------------------------------------------------------------------
-    # Generate embeddings
-    # -----------------------------------------------------------------------
     print("\n" + "=" * 60)
-    print("STEP 3: Generating BGE-M3 embeddings (dense + sparse)")
+    print("STEP 3:  embeddings (dense + sparse)")
     print("=" * 60)
     print(f"  Total chunks to embed: {len(texts)}")
     print(f"  Batch size: {EMBED_BATCH_SIZE}")
-    print("  (BGE-M3 generates dense AND sparse in one pass — no separate BM25)")
+  
 
     start_time = time.time()
     dense_vectors, sparse_vectors = generate_embeddings(model, texts)
@@ -408,9 +304,7 @@ def main():
         json.dump(checkpoint, f)
     print("  Checkpoint saved.")
 
-    # -----------------------------------------------------------------------
     # Create Pinecone index
-    # -----------------------------------------------------------------------
     print("\n" + "=" * 60)
     print("STEP 4: Setting up Pinecone index")
     print("=" * 60)
@@ -418,29 +312,16 @@ def main():
     pc = Pinecone(api_key=PINECONE_API_KEY)
     create_pinecone_index(pc, INDEX_NAME)
 
-    # -----------------------------------------------------------------------
     # Upsert vectors
-    # -----------------------------------------------------------------------
     print("\n" + "=" * 60)
     print("STEP 5: Upserting to Pinecone")
     print("=" * 60)
 
-    upsert_to_pinecone(
-        pc=pc,
-        index_name=INDEX_NAME,
-        chunks=all_chunks,
-        dense_vectors=dense_vectors,
-        sparse_vectors=sparse_vectors,
-    )
-
-    # -----------------------------------------------------------------------
-    # Verify
-    # -----------------------------------------------------------------------
+    upsert_to_pinecone(pc=pc, index_name=INDEX_NAME, chunks=all_chunks, dense_vectors=dense_vectors, sparse_vectors=sparse_vectors,)
     verify_index(pc, INDEX_NAME)
 
-    print("\n✓ Indexing complete. Ready to build the query pipeline.")
+    print("\n✓ Indexing complete.")
     print(f"  Index name: '{INDEX_NAME}'")
-    print(f"  Next step: build retrieval_pipeline.py")
 
 
 # ---------------------------------------------------------------------------

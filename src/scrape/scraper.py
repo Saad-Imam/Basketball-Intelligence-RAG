@@ -20,8 +20,8 @@ HEADERS = {
 }
 
  # Updated Output Path
-OUTPUT_DIR = "corpus/processed"
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, "layer2_rulebook_chunks.json")
+OUTPUT_DIR = "corpus/raw"
+OUTPUT_FILE = os.path.join(OUTPUT_DIR, "layer2_hoopstudent.json")
 
 def sanitize_filename(term_name):
     """
@@ -39,7 +39,7 @@ def get_soup(url):
     Fetch a URL and return a BeautifulSoup object
     """
     try:
-        response = requests.get(url, headers=HEADERS, timeout=10)
+        response = requests.get(url, headers=HEADERS, timeout=60)
         response.raise_for_status()
         return BeautifulSoup(response.text, 'html.parser')
     except requests.exceptions.RequestException as e:

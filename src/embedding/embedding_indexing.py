@@ -1,3 +1,6 @@
+# This is the older, local version of the embedding indexing script.
+# refer to the kaggle version for the most up to date
+
 import json
 import os
 import time
@@ -28,7 +31,7 @@ USE_FP16 = False      # set False if running on CPU only
 
 # On CPU:
 #   - batch_size=4 is safe, expect ~2-5 minutes per 100 chunks
-EMBED_BATCH_SIZE = 8
+EMBED_BATCH_SIZE = 4
 # Pinecone upsert batch size 
 UPSERT_BATCH_SIZE = 100
 # BGE-M3's dense embedding dimension

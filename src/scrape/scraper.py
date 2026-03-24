@@ -19,7 +19,9 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
 }
 
-# 
+ # Updated Output Path
+OUTPUT_DIR = "corpus/processed"
+OUTPUT_FILE = os.path.join(OUTPUT_DIR, "layer2_rulebook_chunks.json")
 
 def sanitize_filename(term_name):
     """
@@ -153,14 +155,14 @@ def extract_detailed_content(detail_url):
     full_text = "\n\n".join([s['text'] for s in sections])
     return full_text, sections
 
-# --- MAIN ORCHESTRATION ---
-
 def main():
-    print("Starting HoopStudent JSON Scraper for RAG...\n")
+    print("Starting HoopStudent JSON Scraper for Layer 2...\n")
+    
+    # Initialize a single list to hold all scraped terms
+    all_layer2_data = []
 
     for category_name, hub_url in CATEGORIES.items():
         print(f"=== Processing Category: {category_name} ===")
-        os.makedirs(category_name, exist_ok=True)
         
         print(f"Fetching terms from {hub_url}...")
         terms = parse_hub_page(hub_url)
@@ -172,9 +174,6 @@ def main():
             detail_url = term_data['url']
             
             safe_name = sanitize_filename(term_name)
-            filename = safe_name + ".json"
-            filepath = os.path.join(category_name, filename)
-            
             print(f"[{idx}/{len(terms)}] Scraping detail for: {term_name}")
             
             # Scrape and chunk detailed page
@@ -186,23 +185,28 @@ def main():
                 "term": term_name,
                 "category": category_name,
                 "source_url": detail_url,
-                "layer": 2,  # Layer 2 = Plays & Actions
+                "layer": 2, 
                 "source_site": "hoopstudent",
                 "concise_definition": concise_def,
-                # "detailed_explanation": detailed_explanation, # we don't need it since we will retrieve based on sections
                 "sections": sections
             }
             
-            # Write to JSON file
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(doc, f, ensure_ascii=False, indent=2)
+            # Append to our master list instead of saving individual files
+            all_layer2_data.append(doc)
                 
             # Politeness delay
             time.sleep(1.5)
             
-        print(f"Finished processing {category_name}!\n")
+        print(f"Finished gathering {category_name}!\n")
 
-    print("Scraping completed successfully! Your JSON dataset is ready.")
+    # --- FINAL SAVE STEP ---
+    # Ensure the directory exists
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    
+    # Write the entire list to one single JSON file
+    with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        json.dump(all_layer2_data, f, ensure_ascii=False, indent=2)
 
+    print(f"Scraping completed! Saved {len(all_layer2_data)} terms to: {OUTPUT_FILE}")
 if __name__ == "__main__":
     main()

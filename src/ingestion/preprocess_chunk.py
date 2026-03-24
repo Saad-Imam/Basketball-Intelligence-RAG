@@ -13,7 +13,7 @@ from docling.chunking import HybridChunker
 # NOTE: run this from repo root directory
 RULEBOOKS = [
     {
-        "path": "corpus/raw_rulebook/Official-2025-26-NBA-Playing-Rules.pdf", 
+        "path": "corpus/raw/Official-2025-26-NBA-Playing-Rules.pdf", 
         "doc_id": "nba_rulebook_2025",
         "source": "nba_rulebook",
         "source_url": "https://ak-static.cms.nba.com/wp-content/uploads/sites/4/2025/10/Official-2025-26-NBA-Playing-Rules.pdf",
@@ -23,7 +23,7 @@ RULEBOOKS = [
     },
     # Q: do we keep the appendixes in the fiba doc? currently they are still there
     {
-        "path": "corpus/raw_rulebook/fiba-official-rules-2024-v10a.pdf",
+        "path": "corpus/raw/fiba-official-rules-2024-v10a.pdf",
         "doc_id": "fiba_rulebook_2024",
         "source": "fiba_rulebook",
         "source_url": "https://www.fiba.basketball/documents/official-basketball-rules",
@@ -45,7 +45,7 @@ TOKENIZER_MODEL = "BAAI/bge-m3"
 MAX_TOKENS = 500          # max tokens per chunk — keeps chunks under embedding limit
 MIN_SECTION_CHARS = 80    # skip sections shorter than this (
 
-OUTPUT_DIR = Path("corpus/processed_rulebook")
+OUTPUT_DIR = Path("corpus/processed")
 OUTPUT_FILE = OUTPUT_DIR / "layer1_rulebook_chunks.json"
 
 # A single chunk is defined as:
@@ -74,9 +74,9 @@ def parse_heading_path(headings: list[str]) -> dict:
     for heading in headings:
         heading_clean = heading.strip()
 
-        # Match "RULE NO. 4—DEFINITIONS" or "RULE NO. 12B—FOULS AND PENALTIES", for retrieval based on rulenames
+        # IMPROVED REGEX: Handles RULE NO. 4, RULE 4, hyphens, em-dashes, and colons
         rule_match = re.match(
-            r'RULE\s+NO\.?\s+(\d+[A-Z]?)\s*[—\-–]\s*(.+)',
+            r'RULE\s+(?:NO\.?\s+)?(\d+[A-Z]?)\s*[:—\-–\s]\s*(.+)',
             heading_clean, re.IGNORECASE
         )
         if rule_match:
@@ -85,9 +85,9 @@ def parse_heading_path(headings: list[str]) -> dict:
             result["chunk_type"] = "rule_section"
             continue
 
-        # Match "Section I—The Game Officials" or "Section XIV—Suspension of Play", for retrieval based on sections
+        # IMPROVED REGEX: Handles Section I-Title, Section I: Title, etc.
         section_match = re.match(
-            r'Section\s+([IVXLCDM]+)\s*[—\-–]\s*(.+)',
+            r'Section\s+([IVXLCDM]+)\s*[:—\-–\s]\s*(.+)',
             heading_clean, re.IGNORECASE
         )
         if section_match:
@@ -273,7 +273,6 @@ def process_rulebook(config: dict) -> list[RulebookChunk]:
             "section_title": heading_info["section_title"],
             "headings_path": headings,
             "page_numbers": page_numbers,
-            "text": enriched_text,
         }
 
         chunk = RulebookChunk(
@@ -295,33 +294,6 @@ def print_chunk_stats(chunks: list[RulebookChunk]) -> None:
     print(f"\n{'='*60}")
     print(f"CHUNK STATISTICS — Total: {len(chunks)}")
     print(f"{'='*60}")
-
-    by_source: dict = {}
-    by_type: dict = {}
-    token_lengths = []
-
-    for chunk in chunks:
-        src = chunk.metadata.get("source", "unknown")
-        ctype = chunk.metadata.get("chunk_type", "unknown")
-        by_source[src] = by_source.get(src, 0) + 1
-        by_type[ctype] = by_type.get(ctype, 0) + 1
-        # Rough token estimate (words * 1.3)
-        token_lengths.append(len(chunk.text.split()) * 1.3)
-
-    print("\nBy source document:")
-    for src, count in sorted(by_source.items()):
-        print(f"  {src}: {count} chunks")
-
-    print("\nBy chunk type:")
-    for ctype, count in sorted(by_type.items()):
-        print(f"  {ctype}: {count} chunks")
-
-    if token_lengths:
-        avg = sum(token_lengths) / len(token_lengths)
-        print(f"\nToken length (estimated):")
-        print(f"  Average : {avg:.0f} tokens")
-        print(f"  Min     : {min(token_lengths):.0f} tokens")
-        print(f"  Max     : {max(token_lengths):.0f} tokens")
 
 
 def main():

@@ -1,0 +1,24 @@
+name: Sync to Hugging Face Space
+on:
+  push:
+    branches:
+      - main
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history so HF gets all commits
+          lfs: true             # pull any large files if you use Git LFS
+
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name  "GitHub Action"
+          git push --force \
+            https://saadimam:${HF_TOKEN}@huggingface.co/spaces/saadimam/Basketball-Intelligence-RAG \
+            main

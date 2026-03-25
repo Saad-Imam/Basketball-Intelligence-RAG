@@ -1,8 +1,11 @@
+# new workflow to avoid issue with corpus folder being pushed to Hugging Face and causing large file errors. 
 name: Sync to Hugging Face Space
+
 on:
   push:
     branches:
       - main
+
 jobs:
   sync-to-hub:
     runs-on: ubuntu-latest
@@ -10,15 +13,31 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0        # full history so HF gets all commits
-          lfs: true             # pull any large files if you use Git LFS
+          fetch-depth: 1        # We only need the latest files, not the whole history
 
-      - name: Push to Hugging Face Space
+      - name: Prepare Clean Deployment and Push
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git config --global user.email "action@github.com"
-          git config --global user.name  "GitHub Action"
+          # 1. Delete the corpus folder entirely so it is not sent to Hugging Face
+          rm -rf corpus/
+
+          # 2. Delete the GitHub history so the large PDF isn't remembered
+          rm -rf .git
+
+          # 3. Initialize a brand new, empty Git repository locally on the runner
+          git init
+          git checkout -b main
+
+          # 4. Configure Git
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+
+          # 5. Add the remaining code (without corpus/) and create a single commit
+          git add .
+          git commit -m "Deploy to Hugging Face"
+
+          # 6. Force push this clean version to Hugging Face
           git push --force \
             https://saadimam:${HF_TOKEN}@huggingface.co/spaces/saadimam/Basketball-Intelligence-RAG \
             main

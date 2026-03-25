@@ -71,7 +71,7 @@ def _format_chunk_for_context(chunk: dict, index: int) -> str:
     return f"[Source {index} — {label}]\n{text}"
 
 
-def build_prompt(query: str, context_chunks: list[dict]) -> str:
+def build_prompt(query: str, context_chunks: list[dict]) -> tuple[str, str]:
     """
     Builds the full Mistral [INST] prompt.
 
@@ -150,7 +150,8 @@ class BasketballGenerator:
         top_p:          float = TOP_P,
     ) -> GenerationResult:
         
-        #Generates an answer grounded in the retrieved chunks.
+        # Generates an answer grounded in the retrieved chunks.
+    
         
         # Use only the top-N chunks by CrossEncoder score
         context_chunks = retrieved_chunks[:max_chunks]
@@ -185,7 +186,8 @@ class BasketballGenerator:
                 # repetition_penalty not supported in chat_completion interface;
                 # the low temperature (0.2) serves the same purpose here
             )
-            answer = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            answer = content.strip() if content else "No response generated."
             self._log(f"Generated {len(answer.split())} words.")
 
         except Exception as e:

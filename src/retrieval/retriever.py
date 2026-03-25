@@ -8,10 +8,6 @@ from sentence_transformers import CrossEncoder
 
 load_dotenv()
 
-# ---------------------------------------------------------------------------
-# Configuration — mirror the values used in embedding_indexing.py
-# ---------------------------------------------------------------------------
-
 INDEX_NAME        = "basketball-rag-hybrid-bge"
 BGE_MODEL_NAME    = "BAAI/bge-m3"
 CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -315,16 +311,16 @@ if __name__ == "__main__":
             meta = r["metadata"]
             league     = meta.get("league", meta.get("source", ""))
             layer_name = meta.get("layer_name", "")
-            rule       = meta.get("rule_number", "")
-            rule_title = meta.get("rule_title", "")
+            # rule       = meta.get("rule_number", "")
+            # rule_title = meta.get("rule_title", "")
             section    = meta.get("section", "")
             term       = meta.get("term", "")       # Layer 2 field
 
-            # Build a readable label depending on which layer the chunk came from
-            if layer_name == "rulebook":
-                loc = f"{league} | {rule} {rule_title} | {section}".strip(" |")
-            else:
-                loc = f"HoopStudent | {term} | {meta.get('chunk_type', '')}"
+            # # Build a readable label depending on which layer the chunk came from
+            # if layer_name == "rulebook":
+            #     loc = f"{league} | {rule} {rule_title} | {section}".strip(" |")
+            # else:
+            #     loc = f"HoopStudent | {term} | {meta.get('chunk_type', '')}"
 
             print(f"\n  [{i}] CE={r['cross_encoder_score']:+.4f} | RRF={r['rrf_score']:.4f}")
             print(f"       {loc}")

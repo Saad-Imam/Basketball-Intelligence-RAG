@@ -1,4 +1,3 @@
-# new workflow to avoid issue with corpus folder being pushed to Hugging Face and causing large file errors. 
 name: Sync to Hugging Face Space
 
 on:
@@ -9,35 +8,31 @@ on:
 jobs:
   sync-to-hub:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout full repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1        # We only need the latest files, not the whole history
+          fetch-depth: 0   # IMPORTANT: keeps history
 
-      - name: Prepare Clean Deployment and Push
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      - name: Configure Git
         run: |
-          # 1. Delete the corpus folder entirely so it is not sent to Hugging Face
-          rm -rf corpus/
-
-          # 2. Delete the GitHub history so the large PDF isn't remembered
-          rm -rf .git
-
-          # 3. Initialize a brand new, empty Git repository locally on the runner
-          git init
-          git checkout -b main
-
-          # 4. Configure Git
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
 
-          # 5. Add the remaining code (without corpus/) and create a single commit
-          git add .
-          git commit -m "Deploy to Hugging Face"
+      - name: Remove corpus for deployment
+        run: |
+          git rm -r --cached corpus || true
+          rm -rf corpus
 
-          # 6. Force push this clean version to Hugging Face
-          git push --force \
-            https://saadimam:${HF_TOKEN}@huggingface.co/spaces/saadimam/Basketball-Intelligence-RAG \
-            main
+      - name: Commit removal (deployment only)
+        run: |
+          git add .
+          git commit -m "Deploy version without corpus" || echo "No changes"
+
+      - name: Push to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git remote add hf https://saadimam:${HF_TOKEN}@huggingface.co/spaces/saadimam/Basketball-Intelligence-RAG
+          git push hf main --force

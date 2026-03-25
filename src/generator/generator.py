@@ -136,7 +136,7 @@ class BasketballGenerator:
             raise ValueError("HF_TOKEN not found")
         self.model_id = model_id
         self.verbose  = verbose
-        self.client = InferenceClient(provider="sambanova", api_key=HF_TOKEN)
+        self.client = InferenceClient(api_key=HF_TOKEN)
         self._log(f"Generator ready — model: {model_id}")
 
     def _log(self, msg: str) -> None:

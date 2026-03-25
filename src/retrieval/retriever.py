@@ -87,7 +87,7 @@ class BasketballRetriever:
         if top_tokens:
             indices, values = zip(*top_tokens) # zip basically transposes the list of tuples into two lists: 
             # one for indices and one for values, which are the formats Pinecone expects for sparse vectors.
-            sparse = {"indices": list(indices), "values": list(values)}
+            sparse = {"indices": [int(i) for i in indices], "values": list(values)}
         else:
             sparse = {"indices": [], "values": []}
 

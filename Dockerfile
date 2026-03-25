@@ -34,7 +34,7 @@ EOF
 # for pre-caching BGE-M3
 RUN python - <<'EOF'
 from FlagEmbedding import BGEM3FlagModel
-BGEM3FlagModel("BAAI/bge-m3", use_fp16=True)
+BGEM3FlagModel("BAAI/bge-m3", use_fp16=False)
 print("BGE-M3 cached.")
 EOF
 

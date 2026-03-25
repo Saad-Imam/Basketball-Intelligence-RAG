@@ -29,15 +29,8 @@ RULEBOOKS = [
         "source_url": "https://www.fiba.basketball/documents/official-basketball-rules",
         "league": "FIBA",
         "skip_pages": set(range(1, 5)) | set(range(7, 8)) | set(range(62, 71)) | set(range(97, 106)),
-    },
-    # {
-    #     "path": "pdfs/FIBA-Basketball-Rules-Interpretations.pdf",
-    #     "doc_id": "fiba_interpretations_2024",
-    #     "source": "fiba_interpretations",
-    #     "source_url": "https://www.fiba.basketball/documents/official-basketball-rules",
-    #     "league": "FIBA",
-    #     "skip_pages": set(range(1, 4)),
-    # },
+    }
+    
 ]
 
 # HybridChunker settings

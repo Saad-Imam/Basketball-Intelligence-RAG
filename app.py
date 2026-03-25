@@ -53,7 +53,9 @@ async def lifespan(app: FastAPI):
 
 
 # App instance
-app = FastAPI(title="Basketball Intelligence RAG", lifespan=lifespan)
+# app = FastAPI(title="Basketball Intelligence RAG", lifespan=lifespan) # troubleshooting, because hugging face space taking
+# too long to startup
+app = FastAPI(title="Basketball Intelligence RAG")
 
 # ── Request / Response models
 class AskRequest(BaseModel):
@@ -155,3 +157,7 @@ app.mount("/static", StaticFiles(directory=static_dir), name="static")
 @app.get("/")
 def index():
     return FileResponse(static_dir / "index.html")
+
+@app.on_event("startup")
+async def startup_log():
+    log.info("FastAPI is up — models will load on first request.")

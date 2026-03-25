@@ -31,6 +31,13 @@ CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
 print("CrossEncoder cached.")
 EOF
 
+# for pre-caching BGE-M3
+RUN python - <<'EOF'
+from FlagEmbedding import BGEM3FlagModel
+BGEM3FlagModel("BAAI/bge-m3", use_fp16=True)
+print("BGE-M3 cached.")
+EOF
+
 # Non-root user required by HF Spaces
 RUN useradd -m appuser && chown -R appuser /app
 USER appuser

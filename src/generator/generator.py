@@ -136,7 +136,7 @@ class BasketballGenerator:
             raise ValueError("HF_TOKEN not found")
         self.model_id = model_id
         self.verbose  = verbose
-        self.client   = InferenceClient(model=model_id, token=HF_TOKEN, provider= "hf-inference")
+        self.client = InferenceClient(provider="sambanova", api_key=HF_TOKEN)
         self._log(f"Generator ready — model: {model_id}")
 
     def _log(self, msg: str) -> None:
@@ -175,17 +175,15 @@ class BasketballGenerator:
 
         try:
             # chat_completion handles the [INST] templating automatically for Mistral
-            response = self.client.chat_completion(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user",   "content": user_message},
-                ],
-                max_tokens=max_new_tokens,
-                temperature=temperature,
-                top_p=top_p,
-                # repetition_penalty not supported in chat_completion interface;
-                # the low temperature (0.2) serves the same purpose here
-            )
+            response = self.client.chat.completions.create(
+            model=self.model_id,
+            messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_message},
+            ],
+            max_tokens=max_new_tokens,
+            temperature=temperature,
+            top_p=top_p,)
             content = response.choices[0].message.content
             answer = content.strip() if content else "No response generated."
             self._log(f"Generated {len(answer.split())} words.")

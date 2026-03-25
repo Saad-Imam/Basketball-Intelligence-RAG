@@ -1,7 +1,7 @@
 ---
 title: Basketball Intelligence RAG
 emoji: 🏀
-colorFrom: orange
+colorFrom: blue
 colorTo: gray
 sdk: docker
 app_port: 7860

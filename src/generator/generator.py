@@ -7,7 +7,9 @@ from huggingface_hub import InferenceClient
 
 load_dotenv()
 HF_TOKEN      = os.getenv("HF_TOKEN")   # set in .env locally, HF Spaces Secret in prod
-MODEL_ID       = "mistralai/Mistral-7B-Instruct-v0.3"
+# MODEL_ID       = "mistralai/Mistral-7B-Instruct-v0.3" # unfortunatley not available anymore freely
+
+MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct" # llama is available through sambanova provider
 
 MAX_NEW_TOKENS  = 512
 TEMPERATURE     = 0.2    # low — we want factual, grounded answers
@@ -136,7 +138,7 @@ class BasketballGenerator:
             raise ValueError("HF_TOKEN not found")
         self.model_id = model_id
         self.verbose  = verbose
-        self.client = InferenceClient(api_key=HF_TOKEN)
+        self.client = InferenceClient(provider="sambanova", api_key=HF_TOKEN)
         self._log(f"Generator ready — model: {model_id}")
 
     def _log(self, msg: str) -> None:

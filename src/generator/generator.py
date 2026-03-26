@@ -3,13 +3,15 @@ import textwrap
 from dataclasses import dataclass, field
 from typing import Optional
 from dotenv import load_dotenv
-from huggingface_hub import InferenceClient
+# from huggingface_hub import InferenceClient
+from openai import OpenAI
 
 load_dotenv()
-HF_TOKEN      = os.getenv("HF_TOKEN")   # set in .env locally, HF Spaces Secret in prod
+# HF_TOKEN      = os.getenv("HF_TOKEN")   # set in .env locally, HF Spaces Secret in prod
 # MODEL_ID       = "mistralai/Mistral-7B-Instruct-v0.3" # unfortunatley not available anymore freely
 
-MODEL_ID = "meta-llama/Llama-3.1-8B-Instruct" # llama is available through sambanova provider
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+MODEL_ID           = "google/gemma-3-12b-it:free"
 
 MAX_NEW_TOKENS  = 512
 TEMPERATURE     = 0.2    # low — we want factual, grounded answers
@@ -17,7 +19,6 @@ TOP_P           = 0.9
 # REPETITION_PENALTY = 1.15  # mild penalty to stop the model looping on rule text
 
 # How many retrieved chunks to include in the context window
-# 5 chunks × ~400 tokens each ≈ 2000 context tokens — well within Mistral's 32k window
 MAX_CONTEXT_CHUNKS = 5
 
 @dataclass
@@ -75,7 +76,7 @@ def _format_chunk_for_context(chunk: dict, index: int) -> str:
 
 def build_prompt(query: str, context_chunks: list[dict]) -> tuple[str, str]:
     """
-    Builds the full Mistral [INST] prompt.
+    Builds the full  prompt.
 
     Prompt design decisions:
       - System block sets a strict "only use the provided context" rule.
@@ -85,10 +86,6 @@ def build_prompt(query: str, context_chunks: list[dict]) -> tuple[str, str]:
       - We ask it to acknowledge uncertainty rather than hallucinate.
       - The context is numbered so cross-referencing is unambiguous.
       - "concise but complete" nudges against both truncation and rambling.
-
-    Mistral-7B-Instruct-v0.3 uses the <s>[INST] ... [/INST] format.
-    The huggingface_hub InferenceClient handles the BOS token automatically
-    when using chat_completion, so we use that interface.
     """
     # Format all context chunks
     context_blocks = "\n\n".join(
@@ -125,7 +122,7 @@ def build_prompt(query: str, context_chunks: list[dict]) -> tuple[str, str]:
 
 class BasketballGenerator:
     """
-    Wraps the HF InferenceClient and exposes a single .generate() method.
+    Wraps the InferenceClient and exposes a single .generate() method.
 
     InferenceClient is preferred over raw requests because:
       - Handles auth headers automatically
@@ -134,12 +131,20 @@ class BasketballGenerator:
       - Works identically locally and on HF Spaces
     """
     def __init__(self, model_id: str = MODEL_ID, verbose: bool = True):
-        if not HF_TOKEN:
-            raise ValueError("HF_TOKEN not found")
+        if not OPENROUTER_API_KEY:
+            raise ValueError(
+                "OPENROUTER_API_KEY not found. "
+                "Set it in .env locally or as a Space secret on HuggingFace."
+            )
         self.model_id = model_id
         self.verbose  = verbose
-        self.client = InferenceClient(provider="sambanova", api_key=HF_TOKEN)
-        self._log(f"Generator ready — model: {model_id}")
+ 
+        # OpenRouter is OpenAI-API-compatible — just swap the base_url
+        self.client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=OPENROUTER_API_KEY,
+        )
+        self._log(f"Generator ready — model: {model_id} via OpenRouter")
 
     def _log(self, msg: str) -> None:
         if self.verbose:
@@ -193,7 +198,7 @@ class BasketballGenerator:
         except Exception as e:
             # Surface the error clearly rather than silently returning empty string
             error_msg = str(e)
-            self._log(f"HF Inference API error: {error_msg}")
+            self._log(f"Inference API error: {error_msg}")
             # Common failure modes and human-readable explanations:
             if "loading" in error_msg.lower() or "503" in error_msg:
                 answer = (
@@ -202,7 +207,7 @@ class BasketballGenerator:
                 )
             elif "quota" in error_msg.lower() or "429" in error_msg:
                 answer = (
-                    "HF Inference API rate limit reached. "
+                    "API rate limit reached. "
                     "Please wait a moment before submitting another query."
                 )
             else:

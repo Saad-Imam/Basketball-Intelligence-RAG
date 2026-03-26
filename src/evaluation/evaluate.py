@@ -13,7 +13,7 @@ from sentence_transformers import SentenceTransformer
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-JUDGE_MODEL_ID     = "google/gemma-3-4b-it:free " #using the smaller gemma model for evaluation
+JUDGE_MODEL_ID     = "google/gemma-3-4b-it:free" #using the smaller gemma model for evaluation
 
 # Lightweight bi-encoder for relevancy cosine similarity.
 # all-MiniLM-L6-v2 is 80MB, fast on CPU, well-suited for short sentence similarity.

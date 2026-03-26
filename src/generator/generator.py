@@ -175,19 +175,22 @@ class BasketballGenerator:
         self._log(f"Building prompt with {len(context_chunks)} context chunks...")
         system_prompt, user_message = build_prompt(query, context_chunks)
 
-        # Full prompt string for logging/report (not sent to API directly)
-        full_prompt_log = f"[SYSTEM]\n{system_prompt}\n\n[USER]\n{user_message}"
+        # Full prompt string for logging/report
+        full_prompt_log = f"[SYSTEM+USER MERGED]\n{system_prompt}\n\n{user_message}"
 
         self._log(f"Calling {self.model_id}...")
 
         try:
-            # chat_completion handles the [INST] templating automatically for Mistral
+            # chat_completion handles the templating automatically
+            # for gemma models, system role isn't supported in chat template, so we merge it with the user message
             response = self.client.chat.completions.create(
-            model=self.model_id,
-            messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_message},
-            ],
+                model=self.model_id,
+                messages=[
+                {
+                "role": "user",
+                "content": f"{system_prompt}\n\n{user_message}",
+                },
+    ],
             max_tokens=max_new_tokens,
             temperature=temperature,
             top_p=top_p,)

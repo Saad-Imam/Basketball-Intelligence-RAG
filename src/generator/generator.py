@@ -13,7 +13,7 @@ load_dotenv()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL_ID           = "google/gemma-3-12b-it:free"
 
-MAX_NEW_TOKENS  = 512
+MAX_NEW_TOKENS  = 1024
 TEMPERATURE     = 0.2    # low — we want factual, grounded answers
 TOP_P           = 0.9
 # REPETITION_PENALTY = 1.15  # mild penalty to stop the model looping on rule text

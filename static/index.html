@@ -26,243 +26,215 @@
       --font-body: 'Libre Baskerville', Georgia, serif;
       --font-mono: 'JetBrains Mono', monospace;
       --transition: 180ms cubic-bezier(.4,0,.2,1);
+      --panel-w:   380px;
     }
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-body);
-      font-size: 15px;
-      line-height: 1.65;
-      overflow: hidden;
-    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 15px; line-height: 1.65; overflow: hidden; }
     body::before {
       content: '';
       position: fixed; inset: 0;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-      pointer-events: none;
-      z-index: 0;
+      pointer-events: none; z-index: 0;
     }
-    #shell {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
+
+    /* ── Shell layout ── */
+    #shell { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
     #topbar {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      padding: 0 24px;
-      height: 48px;
+      display: flex; align-items: center; justify-content: flex-end;
+      padding: 0 24px; height: 48px;
       border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      flex-shrink: 0;
+      background: var(--surface); flex-shrink: 0; z-index: 10;
     }
-    #status-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--text-faint);
-      transition: background var(--transition);
-    }
+    #status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); transition: background var(--transition); }
     #status-dot.ready { background: var(--green); box-shadow: 0 0 6px var(--green); }
     #status-dot.busy  { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: pulse 1s infinite; }
     #status-dot.error { background: var(--red); }
-    #status-label {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-dim);
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      margin-right: 8px;
-    }
+    #status-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-right: 8px; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-    #main { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    #main { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+    /* ── Conversation ── */
+    #chat-col { display: flex; flex-direction: column; flex: 1; overflow: hidden; transition: margin-left 300ms cubic-bezier(.4,0,.2,1); }
     #convo {
-      flex: 1;
-      overflow-y: auto;
+      flex: 1; overflow-y: auto;
       padding: 32px clamp(24px, 8vw, 120px);
-      display: flex;
-      flex-direction: column;
-      gap: 32px;
+      display: flex; flex-direction: column; gap: 32px;
     }
     #convo::-webkit-scrollbar { width: 4px; }
     #convo::-webkit-scrollbar-track { background: transparent; }
     #convo::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-    #welcome {
-      margin: auto;
-      text-align: center;
-      animation: fadeUp 600ms ease both;
-    }
-    @keyframes fadeUp {
-      from { opacity:0; transform: translateY(20px); }
-      to   { opacity:1; transform: translateY(0); }
-    }
-    #logo-lockup {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-    }
-    #ball-wrap {
-      width: 90px;
-      height: 110px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-end;
-      flex-shrink: 0;
-    }
-    #ball-wrap svg {
-      width: 90px;
-      height: 90px;
-      animation: bounce 0.72s cubic-bezier(.33,0,.66,1) infinite alternate;
-      transform-origin: center bottom;
-    }
-    @keyframes bounce {
-      0%   { transform: translateY(0)    scaleY(1)   scaleX(1); }
-      85%  { transform: translateY(18px) scaleY(1)   scaleX(1); }
-      100% { transform: translateY(18px) scaleY(.82) scaleX(1.14); }
-    }
-    #ball-shadow {
-      width: 60px; height: 10px;
-      background: radial-gradient(ellipse, rgba(232,135,42,.35) 0%, transparent 70%);
-      border-radius: 50%;
-      animation: shadow-pulse 0.72s cubic-bezier(.33,0,.66,1) infinite alternate;
-    }
-    @keyframes shadow-pulse {
-      0%   { transform: scaleX(1);   opacity: .5; }
-      85%  { transform: scaleX(.75); opacity: .2; }
-      100% { transform: scaleX(1.2); opacity: .7; }
-    }
-    #ai-text {
-      font-family: var(--font-head);
-      font-size: 96px;
-      line-height: 1;
-      letter-spacing: 6px;
-      color: var(--accent);
-      text-shadow: 0 0 40px rgba(232,135,42,.25), 0 2px 0 rgba(0,0,0,.6);
-      user-select: none;
-    }
-    #welcome .tagline {
-      margin-top: 22px;
-      font-size: 13px;
-      color: var(--text-dim);
-      font-style: italic;
-      letter-spacing: .3px;
-    }
+
+    /* ── Welcome ── */
+    #welcome { margin: auto; text-align: center; animation: fadeUp 600ms ease both; }
+    @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    #logo-lockup { display: flex; align-items: center; justify-content: center; gap: 20px; }
+    #ball-wrap { width: 90px; height: 110px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; flex-shrink: 0; }
+    #ball-wrap svg { width: 90px; height: 90px; animation: bounce 0.72s cubic-bezier(.33,0,.66,1) infinite alternate; transform-origin: center bottom; }
+    @keyframes bounce { 0%{transform:translateY(0) scaleY(1) scaleX(1)} 85%{transform:translateY(18px) scaleY(1) scaleX(1)} 100%{transform:translateY(18px) scaleY(.82) scaleX(1.14)} }
+    #ball-shadow { width: 60px; height: 10px; background: radial-gradient(ellipse, rgba(232,135,42,.35) 0%, transparent 70%); border-radius: 50%; animation: shadow-pulse 0.72s cubic-bezier(.33,0,.66,1) infinite alternate; }
+    @keyframes shadow-pulse { 0%{transform:scaleX(1);opacity:.5} 85%{transform:scaleX(.75);opacity:.2} 100%{transform:scaleX(1.2);opacity:.7} }
+    #ai-text { font-family: var(--font-head); font-size: 96px; line-height: 1; letter-spacing: 6px; color: var(--accent); text-shadow: 0 0 40px rgba(232,135,42,.25), 0 2px 0 rgba(0,0,0,.6); user-select: none; }
+    #welcome .tagline { margin-top: 22px; font-size: 13px; color: var(--text-dim); font-style: italic; letter-spacing: .3px; }
+
+    /* ── Turn ── */
     .turn { animation: fadeUp 300ms ease both; max-width: 780px; width: 100%; margin: 0 auto; }
     .turn-query {
-      font-family: var(--font-head);
-      font-size: 20px;
-      letter-spacing: 1.5px;
-      color: var(--text);
-      padding-bottom: 12px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: baseline;
-      gap: 10px;
+      font-family: var(--font-head); font-size: 20px; letter-spacing: 1.5px; color: var(--text);
+      padding-bottom: 12px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: baseline; gap: 10px;
     }
-    .turn-query::before {
-      content: 'Q';
-      font-size: 11px;
-      font-family: var(--font-mono);
-      color: var(--accent);
-      letter-spacing: 2px;
-      padding: 2px 6px;
-      border: 1px solid var(--accent);
-      border-radius: 3px;
-      flex-shrink: 0;
-    }
+    .turn-query::before { content: 'Q'; font-size: 11px; font-family: var(--font-mono); color: var(--accent); letter-spacing: 2px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: 3px; flex-shrink: 0; }
     .turn-answer { margin-top: 16px; font-size: 14.5px; line-height: 1.8; color: var(--text); }
-    .turn-answer .cite {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--accent);
-      border: 1px solid var(--accent);
-      border-radius: 3px;
-      padding: 1px 5px;
-      margin: 0 2px;
-      vertical-align: middle;
+
+    /* Inline citation badges — now clickable */
+    .cite {
+      font-family: var(--font-mono); font-size: 10px; color: var(--accent);
+      border: 1px solid var(--accent); border-radius: 3px; padding: 1px 5px;
+      margin: 0 2px; vertical-align: middle;
+      cursor: pointer; background: transparent;
+      transition: background var(--transition), color var(--transition);
+      display: inline-block;
     }
-    .turn-meta {
-      margin-top: 12px;
-      display: flex;
-      gap: 16px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-faint);
+    .cite:hover { background: var(--accent); color: #000; }
+    .cite.active { background: var(--accent); color: #000; }
+
+    /* Source chips row */
+    .source-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .source-chip {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 5px; padding: 6px 10px;
+      cursor: pointer; transition: border-color var(--transition), background var(--transition);
+      max-width: 260px; text-align: left;
     }
+    .source-chip:hover { border-color: var(--accent); background: var(--surface2); }
+    .source-chip.active { border-color: var(--accent); background: var(--surface2); }
+    .chip-num {
+      font-family: var(--font-mono); font-size: 10px; color: var(--accent);
+      border: 1px solid var(--accent); border-radius: 3px;
+      padding: 1px 5px; flex-shrink: 0;
+    }
+    .chip-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .turn-meta { margin-top: 12px; display: flex; gap: 16px; font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
     .turn-meta span { display: flex; align-items: center; gap: 4px; }
     .turn-meta .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text-faint); }
-    .skeleton-line {
-      height: 14px;
-      background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
-      background-size: 200% 100%;
-      animation: shimmer 1.4s infinite;
-      border-radius: 3px;
-      margin-bottom: 10px;
-    }
+    .skeleton-line { height: 14px; background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 3px; margin-bottom: 10px; }
     @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
-    #input-bar {
-      padding: 16px clamp(24px, 8vw, 120px) 24px;
-      background: var(--bg);
-      border-top: 1px solid var(--border);
-    }
-    #input-wrap {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      max-width: 780px;
-      margin: 0 auto;
-      transition: border-color var(--transition), box-shadow var(--transition);
-    }
-    #input-wrap:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(232,135,42,.12);
-    }
-    #query-input {
-      flex: 1;
-      background: none;
-      border: none;
-      outline: none;
-      font-family: var(--font-body);
-      font-size: 14px;
-      color: var(--text);
-      resize: none;
-      max-height: 120px;
-      line-height: 1.5;
-    }
+
+    /* ── Input bar ── */
+    #input-bar { padding: 16px clamp(24px, 8vw, 120px) 24px; background: var(--bg); border-top: 1px solid var(--border); }
+    #input-wrap { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; max-width: 780px; margin: 0 auto; transition: border-color var(--transition), box-shadow var(--transition); }
+    #input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232,135,42,.12); }
+    #query-input { flex: 1; background: none; border: none; outline: none; font-family: var(--font-body); font-size: 14px; color: var(--text); resize: none; max-height: 120px; line-height: 1.5; }
     #query-input::placeholder { color: var(--text-faint); font-style: italic; }
-    #send-btn {
-      flex-shrink: 0;
-      width: 36px; height: 36px;
-      background: var(--accent);
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background var(--transition), transform var(--transition);
-    }
+    #send-btn { flex-shrink: 0; width: 36px; height: 36px; background: var(--accent); border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background var(--transition), transform var(--transition); }
     #send-btn:hover:not(:disabled) { background: var(--accent2); transform: scale(1.05); }
     #send-btn:disabled { background: var(--text-faint); cursor: not-allowed; transform: none; }
     #send-btn svg { width: 16px; height: 16px; fill: #fff; }
-    #hint {
-      margin-top: 8px;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      color: var(--text-faint);
-      text-align: center;
+    #hint { margin-top: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); text-align: center; }
+
+    /* ═══════════════════════════════════════
+       SOURCE PANEL
+    ═══════════════════════════════════════ */
+    #panel-backdrop {
+      display: none;
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(0,0,0,.45);
+      backdrop-filter: blur(2px);
+      animation: fadein 200ms ease both;
     }
+    @keyframes fadein { from{opacity:0} to{opacity:1} }
+    #panel-backdrop.open { display: block; }
+
+    #source-panel {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      width: var(--panel-w); z-index: 51;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transform: translateX(-100%);
+      transition: transform 300ms cubic-bezier(.4,0,.2,1);
+      box-shadow: 4px 0 32px rgba(0,0,0,.5);
+    }
+    #source-panel.open { transform: translateX(0); }
+
+    #panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; height: 48px; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #panel-title { font-family: var(--font-head); font-size: 16px; letter-spacing: 2px; color: var(--accent); }
+    #panel-close {
+      width: 28px; height: 28px; background: none; border: 1px solid var(--border);
+      border-radius: 4px; cursor: pointer; color: var(--text-dim); display: flex;
+      align-items: center; justify-content: center; font-size: 16px; line-height: 1;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    #panel-close:hover { border-color: var(--text-dim); color: var(--text); }
+
+    /* Tab strip */
+    #panel-tabs { display: flex; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .p-tab {
+      flex: 1; padding: 10px 0; text-align: center;
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+      color: var(--text-faint); cursor: pointer; border-bottom: 2px solid transparent;
+      transition: color var(--transition), border-color var(--transition);
+    }
+    .p-tab:hover { color: var(--text-dim); }
+    .p-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* Tab panes */
+    #panel-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    #panel-body::-webkit-scrollbar { width: 3px; }
+    #panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Info pane */
+    .info-block { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+    .info-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 5px; }
+    .info-value { font-size: 13px; color: var(--text); line-height: 1.5; }
+    .info-value.mono { font-family: var(--font-mono); font-size: 12px; }
+
+    /* Score bar */
+    .score-row { display: flex; gap: 10px; }
+    .score-block { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+    .score-num { font-family: var(--font-mono); font-size: 20px; color: var(--accent); font-weight: 500; }
+    .score-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+    .score-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 500ms cubic-bezier(.4,0,.2,1); }
+
+    /* Text pane */
+    #pane-text { display: none; }
+    #pane-text.active { display: block; }
+    #pane-info { display: none; }
+    #pane-info.active { display: block; display: flex; flex-direction: column; gap: 12px; }
+
+    .chunk-text-box {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; font-size: 13px; line-height: 1.8; color: var(--text);
+      white-space: pre-wrap; word-break: break-word;
+    }
+
+    /* Nav arrows for cycling through sources */
+    #panel-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 20px; border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      background: none; border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text-dim); font-family: var(--font-mono); font-size: 11px;
+      padding: 5px 12px; cursor: pointer; display: flex; align-items: center; gap: 6px;
+      transition: border-color var(--transition), color var(--transition);
+    }
+    .nav-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
+    #nav-counter { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
+
     * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
     @media (max-width: 600px) {
       #ai-text { font-size: 64px; }
       #ball-wrap, #ball-wrap svg { width: 60px; height: 60px; }
+      :root { --panel-w: 100vw; }
     }
   </style>
 </head>
@@ -272,67 +244,121 @@
     <div id="status-label">INITIALISING</div>
     <div id="status-dot"></div>
   </header>
-
   <main id="main">
-    <div id="convo">
-      <div id="welcome">
-        <div id="logo-lockup">
-          <div id="ball-wrap">
-            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <radialGradient id="ballGrad" cx="38%" cy="35%" r="60%">
-                  <stop offset="0%"   stop-color="#f5a94e"/>
-                  <stop offset="55%"  stop-color="#e8872a"/>
-                  <stop offset="100%" stop-color="#7a3a06"/>
-                </radialGradient>
-                <radialGradient id="specular" cx="35%" cy="30%" r="30%">
-                  <stop offset="0%"   stop-color="rgba(255,255,255,.22)"/>
-                  <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
-                </radialGradient>
-                <clipPath id="ballClip">
-                  <circle cx="50" cy="50" r="46"/>
-                </clipPath>
-              </defs>
-              <circle cx="50" cy="50" r="46" fill="url(#ballGrad)"/>
-              <g clip-path="url(#ballClip)" fill="none" stroke="#7a3a06" stroke-width="2.4" stroke-linecap="round">
-                <path d="M50 4 Q62 50 50 96"/>
-                <path d="M50 4 Q38 50 50 96"/>
-                <path d="M4 50 Q50 62 96 50"/>
-                <path d="M4 50 Q50 38 96 50"/>
-              </g>
-              <circle cx="50" cy="50" r="46" fill="url(#specular)"/>
-            </svg>
-            <div id="ball-shadow"></div>
+    <div id="chat-col">
+      <div id="convo">
+        <div id="welcome">
+          <div id="logo-lockup">
+            <div id="ball-wrap">
+              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <radialGradient id="ballGrad" cx="38%" cy="35%" r="60%"><stop offset="0%" stop-color="#f5a94e"/><stop offset="55%" stop-color="#e8872a"/><stop offset="100%" stop-color="#7a3a06"/></radialGradient>
+                  <radialGradient id="specular" cx="35%" cy="30%" r="30%"><stop offset="0%" stop-color="rgba(255,255,255,.22)"/><stop offset="100%" stop-color="rgba(255,255,255,0)"/></radialGradient>
+                  <clipPath id="ballClip"><circle cx="50" cy="50" r="46"/></clipPath>
+                </defs>
+                <circle cx="50" cy="50" r="46" fill="url(#ballGrad)"/>
+                <g clip-path="url(#ballClip)" fill="none" stroke="#7a3a06" stroke-width="2.4" stroke-linecap="round">
+                  <path d="M50 4 Q62 50 50 96"/><path d="M50 4 Q38 50 50 96"/>
+                  <path d="M4 50 Q50 62 96 50"/><path d="M4 50 Q50 38 96 50"/>
+                </g>
+                <circle cx="50" cy="50" r="46" fill="url(#specular)"/>
+              </svg>
+              <div id="ball-shadow"></div>
+            </div>
+            <div id="ai-text">AI</div>
           </div>
-          <div id="ai-text">AI</div>
+          <div class="tagline">Ask anything about NBA &amp; FIBA rules, tactics, or strategy.</div>
         </div>
-        <div class="tagline">Ask anything about NBA &amp; FIBA rules, tactics, or strategy.</div>
       </div>
-    </div>
 
-    <div id="input-bar">
-      <div id="input-wrap">
-        <textarea id="query-input" rows="1" placeholder="Ask a question about basketball rules or strategy…"></textarea>
-        <button id="send-btn" onclick="sendQuery()" title="Send (Enter)">
-          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-          </svg>
-        </button>
+      <div id="input-bar">
+        <div id="input-wrap">
+          <textarea id="query-input" rows="1" placeholder="Ask a question about basketball rules or strategy…"></textarea>
+          <button id="send-btn" onclick="sendQuery()" title="Send (Enter)">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+        <div id="hint">Enter to send &nbsp;·&nbsp; Shift+Enter for new line</div>
       </div>
-      <div id="hint">Enter to send &nbsp;·&nbsp; Shift+Enter for new line</div>
     </div>
   </main>
 </div>
 
+<!-- ─── Source panel backdrop ─── -->
+<div id="panel-backdrop" onclick="closePanel()"></div>
+
+<!-- ─── Source panel ─── -->
+<div id="source-panel" role="complementary" aria-label="Source details">
+  <div id="panel-header">
+    <div id="panel-title">SOURCE</div>
+    <button id="panel-close" onclick="closePanel()" title="Close (Esc)">✕</button>
+  </div>
+
+  <div id="panel-tabs">
+    <div class="p-tab active" data-tab="info" onclick="switchTab('info')">INFO</div>
+    <div class="p-tab"        data-tab="text" onclick="switchTab('text')">FULL TEXT</div>
+  </div>
+
+  <!-- INFO TAB -->
+  <div id="panel-body">
+    <div id="pane-info" class="active">
+      <div class="info-block">
+        <div class="info-label">Source</div>
+        <div class="info-value" id="p-label">—</div>
+      </div>
+      <div class="score-row">
+        <div class="score-block">
+          <div class="info-label">CrossEncoder Score</div>
+          <div class="score-num" id="p-ce">—</div>
+          <div class="score-bar-wrap"><div class="score-bar" id="p-ce-bar" style="width:0%"></div></div>
+        </div>
+        <div class="score-block">
+          <div class="info-label">RRF Score</div>
+          <div class="score-num" id="p-rrf">—</div>
+          <div class="score-bar-wrap"><div class="score-bar" id="p-rrf-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+      <div class="info-block">
+        <div class="info-label">Chunk ID</div>
+        <div class="info-value mono" id="p-id">—</div>
+      </div>
+      <div class="info-block">
+        <div class="info-label">Preview</div>
+        <div class="info-value" id="p-preview" style="font-size:12.5px;color:var(--text-dim);font-style:italic">—</div>
+      </div>
+    </div>
+
+    <!-- TEXT TAB -->
+    <div id="pane-text">
+      <div class="chunk-text-box" id="p-fulltext"></div>
+    </div>
+  </div>
+
+  <div id="panel-nav">
+    <button class="nav-btn" id="nav-prev" onclick="navigateSource(-1)">← PREV</button>
+    <span id="nav-counter">— / —</span>
+    <button class="nav-btn" id="nav-next" onclick="navigateSource(+1)">NEXT →</button>
+  </div>
+</div>
+
 <script>
+  /* ── State ── */
   const convo     = document.getElementById('convo');
   const welcome   = document.getElementById('welcome');
   const input     = document.getElementById('query-input');
   const sendBtn   = document.getElementById('send-btn');
   const statusDot = document.getElementById('status-dot');
   const statusLbl = document.getElementById('status-label');
+
   let busy = false;
 
+  // Panel state
+  let panelSources  = [];   // array of source objects for the currently open panel
+  let panelIndex    = 0;    // which source is being shown
+  let activeChips   = [];   // chip + cite elements for the current turn
+  let activeTab     = 'info';
+
+  /* ── Health check ── */
   async function checkHealth() {
     try {
       const r = await fetch('/api/health');
@@ -347,15 +373,21 @@
     statusLbl.textContent = label;
   }
 
+  /* ── Input auto-resize ── */
   input.addEventListener('input', () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 120) + 'px';
   });
-
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); }
   });
 
+  /* ── Keyboard shortcut: Esc closes panel ── */
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+  /* ═══════════════════════════════════════
+     SEND QUERY
+  ═══════════════════════════════════════ */
   async function sendQuery() {
     const query = input.value.trim();
     if (!query || busy) return;
@@ -390,43 +422,181 @@
         throw new Error(err.detail || 'Server error');
       }
       const data = await res.json();
+      const sources = data.sources || [];
+
+      /* Answer block */
       const answerEl = turn.querySelector('#answer-loading');
-      answerEl.id = '';
-      answerEl.innerHTML = formatAnswer(data.answer);
+      answerEl.removeAttribute('id');
+      answerEl.innerHTML = formatAnswer(data.answer, sources, turn);
+
+      /* Source chips */
+      if (sources.length) {
+        const chipsWrap = document.createElement('div');
+        chipsWrap.className = 'source-chips';
+
+        sources.forEach((src, i) => {
+          const chip = document.createElement('button');
+          chip.className = 'source-chip';
+          chip.dataset.idx = i;
+          chip.innerHTML = `
+            <span class="chip-num">S${src.index}</span>
+            <span class="chip-label">${escHtml(truncate(src.label, 36))}</span>`;
+          chip.addEventListener('click', () => openPanel(sources, i, turn));
+          chipsWrap.appendChild(chip);
+        });
+        turn.appendChild(chipsWrap);
+      }
+
+      /* Timing meta */
       const meta = document.createElement('div');
       meta.className = 'turn-meta';
       meta.innerHTML = `
         <span><span class="dot"></span>Retrieval ${data.retrieval_ms}ms</span>
         <span><span class="dot"></span>Generation ${data.generation_ms}ms</span>
-        <span><span class="dot"></span>${data.sources.length} sources</span>`;
+        <span><span class="dot"></span>${sources.length} sources</span>`;
       turn.appendChild(meta);
+
       setStatus('ready', 'READY');
     } catch (err) {
       const answerEl = turn.querySelector('#answer-loading') || turn.querySelector('.turn-answer');
       if (answerEl) answerEl.innerHTML = `<span style="color:var(--red)">Error: ${escHtml(err.message)}</span>`;
       setStatus('error', 'ERROR');
     }
+
     busy = false;
     sendBtn.disabled = false;
     scrollDown();
   }
 
-  function formatAnswer(text) {
+  /* ── Format answer: make [Source N] clickable ── */
+  function formatAnswer(text, sources, turn) {
     return escHtml(text).replace(
       /\[Source\s?(\d+)\]/gi,
-      (_, n) => `<span class="cite">[Source ${n}]</span>`
+      (_, n) => {
+        const idx = parseInt(n, 10) - 1;
+        return `<span class="cite" data-src-idx="${idx}" onclick="openPanelFromCite(event, ${idx})">[Source ${n}]</span>`;
+      }
     );
   }
 
-  function escHtml(s) {
-    return String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/"/g,'&quot;');
+  /* Called when a [Source N] inline badge is clicked */
+  function openPanelFromCite(event, idx) {
+    // Find the enclosing turn to get its sources
+    const turn = event.target.closest('.turn');
+    if (!turn) return;
+    const chips = turn.querySelectorAll('.source-chip');
+    // Re-collect sources from chips data — we store sources on the turn element
+    const sources = turn._sources;
+    if (!sources) return;
+    openPanel(sources, idx, turn);
   }
 
-  function scrollDown() {
-    convo.scrollTo({ top: convo.scrollHeight, behavior: 'smooth' });
+  /* ═══════════════════════════════════════
+     PANEL LOGIC
+  ═══════════════════════════════════════ */
+  function openPanel(sources, idx, turn) {
+    panelSources = sources;
+    panelIndex   = Math.max(0, Math.min(idx, sources.length - 1));
+
+    // Store sources on the turn element so cite clicks can find them
+    turn._sources = sources;
+
+    renderPanelSource();
+    syncActiveStyles(turn);
+
+    document.getElementById('panel-backdrop').classList.add('open');
+    document.getElementById('source-panel').classList.add('open');
   }
+
+  function closePanel() {
+    document.getElementById('panel-backdrop').classList.remove('open');
+    document.getElementById('source-panel').classList.remove('open');
+    clearActiveStyles();
+  }
+
+  function navigateSource(delta) {
+    panelIndex = Math.max(0, Math.min(panelIndex + delta, panelSources.length - 1));
+    renderPanelSource();
+    // Sync active highlight with new index
+    // Find the currently open turn (the one whose _sources matches panelSources)
+    const turns = convo.querySelectorAll('.turn');
+    for (const t of turns) {
+      if (t._sources === panelSources) { syncActiveStyles(t); break; }
+    }
+  }
+
+  function renderPanelSource() {
+    const src = panelSources[panelIndex];
+    if (!src) return;
+
+    // Nav counter & buttons
+    document.getElementById('nav-counter').textContent = `${panelIndex + 1} / ${panelSources.length}`;
+    document.getElementById('nav-prev').disabled = panelIndex === 0;
+    document.getElementById('nav-next').disabled = panelIndex === panelSources.length - 1;
+
+    // Panel title
+    document.getElementById('panel-title').textContent = `SOURCE ${src.index}`;
+
+    // Info pane
+    document.getElementById('p-label').textContent   = src.label   || '—';
+    document.getElementById('p-id').textContent      = `chunk_${src.index}`;
+    document.getElementById('p-preview').textContent = truncate(src.text, 180);
+
+    // CrossEncoder score — raw float, can be negative; normalise for bar display
+    const ce = src.cross_encoder_score ?? 0;
+    document.getElementById('p-ce').textContent = ce.toFixed(3);
+    // CE scores from ms-marco CrossEncoder range roughly -10 to +10
+    const ceBarPct = Math.max(0, Math.min(100, ((ce + 10) / 20) * 100));
+    document.getElementById('p-ce-bar').style.width = ceBarPct + '%';
+
+    // RRF score — typically 0.01 – 0.06 range; scale for bar
+    const rrf = src.rrf_score ?? 0;
+    document.getElementById('p-rrf').textContent = rrf.toFixed(4);
+    const rrfBarPct = Math.max(0, Math.min(100, (rrf / 0.06) * 100));
+    document.getElementById('p-rrf-bar').style.width = rrfBarPct + '%';
+
+    // Full text pane
+    document.getElementById('p-fulltext').textContent = src.text || '—';
+
+    // Re-apply active tab
+    switchTab(activeTab, false);
+  }
+
+  /* Highlight the active chip + cite badge */
+  function syncActiveStyles(turn) {
+    clearActiveStyles();
+    // Chips
+    const chips = turn.querySelectorAll('.source-chip');
+    chips.forEach((chip, i) => chip.classList.toggle('active', i === panelIndex));
+    // Inline cite badges
+    const cites = turn.querySelectorAll('.cite');
+    cites.forEach(c => {
+      const idx = parseInt(c.dataset.srcIdx, 10);
+      c.classList.toggle('active', idx === panelIndex);
+    });
+  }
+
+  function clearActiveStyles() {
+    document.querySelectorAll('.source-chip.active, .cite.active').forEach(el => el.classList.remove('active'));
+  }
+
+  /* ── Tabs ── */
+  function switchTab(tab, save = true) {
+    if (save) activeTab = tab;
+    document.querySelectorAll('.p-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.getElementById('pane-info').classList.toggle('active', tab === 'info');
+    document.getElementById('pane-text').classList.toggle('active', tab === 'text');
+    // Also toggle display for the text pane (it uses display:none by default)
+    document.getElementById('pane-text').style.display  = tab === 'text' ? 'block' : 'none';
+    document.getElementById('pane-info').style.display  = tab === 'info' ? 'flex'  : 'none';
+  }
+
+  /* ── Helpers ── */
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + '…' : s; }
+  function scrollDown() { convo.scrollTo({ top: convo.scrollHeight, behavior: 'smooth' }); }
 </script>
 </body>
 </html>

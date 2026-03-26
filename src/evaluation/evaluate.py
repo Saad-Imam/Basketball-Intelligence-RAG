@@ -13,7 +13,7 @@ from sentence_transformers import SentenceTransformer
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-JUDGE_MODEL_ID     = "google/gemma-3-4b-it:free" #using the smaller gemma model for evaluation
+JUDGE_MODEL_ID     = "meta-llama/llama-3.2-3b-instruct:free" #using the smaller gemma model for evaluation
 
 # Lightweight bi-encoder for relevancy cosine similarity.
 # all-MiniLM-L6-v2 is 80MB, fast on CPU, well-suited for short sentence similarity.
@@ -186,6 +186,7 @@ class RAGJudge:
         for i, claim in enumerate(claims):
             self._log(f"  Verifying claim {i+1}/{len(claims)}: {claim[:60]}...")
             result = self._verify_claim(claim, context_text)
+            time.sleep(1) # second pause helps avoid hitting the "burst" limit
             verifications.append(result)
 
         supported = sum(1 for v in verifications if v.supported)
@@ -286,20 +287,20 @@ class RAGJudge:
 # Fixed test set — 15 basketball queries covering NBA, FIBA, and strategy
 TEST_QUERIES = [
     # NBA rules
-    "What is the defensive three-second rule in the NBA?",
-    "How many personal fouls does it take to foul out in the NBA?",
-    "What is the NBA rule for a player being out of bounds?",
-    "What are the rules for a technical foul in the NBA?",
-    "How does the shot clock reset work after an offensive rebound in the NBA?",
-    # FIBA rules
-    "What is the shot clock duration in FIBA basketball?",
-    "How is a jump ball situation resolved in FIBA rules?",
-    "What constitutes a legal screen according to FIBA rules?",
-    "What is the rule for a backcourt violation in FIBA?",
-    "How many seconds does a player have to inbound the ball in FIBA?",
-    # Strategy / tactics
-    "What is a pick and roll and how does it work?",
-    "How does a zone defense differ from man-to-man defense?",
+    # "What is the defensive three-second rule in the NBA?",
+    # "How many personal fouls does it take to foul out in the NBA?",
+    # "What is the NBA rule for a player being out of bounds?",
+    # "What are the rules for a technical foul in the NBA?",
+    # "How does the shot clock reset work after an offensive rebound in the NBA?",
+    # # FIBA rules
+    # "What is the shot clock duration in FIBA basketball?",
+    # "How is a jump ball situation resolved in FIBA rules?",
+    # "What constitutes a legal screen according to FIBA rules?",
+    # "What is the rule for a backcourt violation in FIBA?",
+    # "How many seconds does a player have to inbound the ball in FIBA?",
+    # # Strategy / tactics
+    # "What is a pick and roll and how does it work?",
+    # "How does a zone defense differ from man-to-man defense?",
     "What is the purpose of a box-and-one defense?",
     "How does an isolation play work in basketball offense?",
     "What is a Princeton offense and what are its key principles?",
@@ -318,28 +319,28 @@ def get_judge() -> RAGJudge:
 # Smoke test
 # ---------------------------------------------------------------------------
 
-if __name__ == "__main__":
-    judge = RAGJudge(verbose=True)
+# if __name__ == "__main__":
+#     judge = RAGJudge(verbose=True)
 
-    test_answer = (
-        "In the NBA, a player in the paint on defense cannot remain there for "
-        "more than three consecutive seconds while their team is in control of "
-        "the ball [Source 1]. This rule is called the defensive three-second "
-        "violation and results in a technical foul [Source 2]."
-    )
-    test_query = "What is the defensive three seconds rule in the NBA?"
-    test_chunks = [
-        {"text": "NBA Rule No. 26—Defensive Three-Second Rule: No defensive player may "
-                 "remain in the lane for more than three consecutive seconds while the "
-                 "ball is in play. Violation results in a technical foul."}
-    ]
+#     test_answer = (
+#         "In the NBA, a player in the paint on defense cannot remain there for "
+#         "more than three consecutive seconds while their team is in control of "
+#         "the ball [Source 1]. This rule is called the defensive three-second "
+#         "violation and results in a technical foul [Source 2]."
+#     )
+#     test_query = "What is the defensive three seconds rule in the NBA?"
+#     test_chunks = [
+#         {"text": "NBA Rule No. 26—Defensive Three-Second Rule: No defensive player may "
+#                  "remain in the lane for more than three consecutive seconds while the "
+#                  "ball is in play. Violation results in a technical foul."}
+#     ]
 
-    result = judge.evaluate(test_query, test_answer, test_chunks)
-    print(f"\nFaithfulness: {result.faithfulness_score:.2%}")
-    for cv in result.faithfulness.claims:
-        mark = "✓" if cv.supported else "✗"
-        print(f"  {mark} {cv.claim}")
+#     result = judge.evaluate(test_query, test_answer, test_chunks)
+#     print(f"\nFaithfulness: {result.faithfulness_score:.2%}")
+#     for cv in result.faithfulness.claims:
+#         mark = "✓" if cv.supported else "✗"
+#         print(f"  {mark} {cv.claim}")
 
-    print(f"\nRelevancy: {result.relevancy_score:.4f}")
-    for q, s in zip(result.relevancy.generated_questions, result.relevancy.similarities):
-        print(f"  {s:.4f} — {q}")
+#     print(f"\nRelevancy: {result.relevancy_score:.4f}")
+#     for q, s in zip(result.relevancy.generated_questions, result.relevancy.similarities):
+#         print(f"  {s:.4f} — {q}")

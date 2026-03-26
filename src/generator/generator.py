@@ -240,29 +240,29 @@ def get_generator(model_id: str = MODEL_ID) -> BasketballGenerator:
 # Smoke test — run:  python src/generation/generator.py
 # ---------------------------------------------------------------------------
 
-if __name__ == "__main__":
-    from src.retrieval.retriever import get_retriever
+# if __name__ == "__main__":
+#     from src.retrieval.retriever import get_retriever
 
-    retriever = get_retriever()
-    generator = get_generator()
+#     retriever = get_retriever()
+#     generator = get_generator()
 
-    TEST_QUERIES = [
-        "What is the NBA rule on defensive three seconds?",
-        "Explain how a pick and roll works.",
-        "What is the shot clock duration in FIBA rules?",
-    ]
+#     TEST_QUERIES = [
+#         "What is the NBA rule on defensive three seconds?",
+#         "Explain how a pick and roll works.",
+#         "What is the shot clock duration in FIBA rules?",
+#     ]
 
-    for query in TEST_QUERIES:
-        print("\n" + "=" * 60)
-        print(f"QUERY: {query}")
-        print("=" * 60)
+#     for query in TEST_QUERIES:
+#         print("\n" + "=" * 60)
+#         print(f"QUERY: {query}")
+#         print("=" * 60)
 
-        chunks = retriever.retrieve(query, final_n=5)
-        result = generator.generate(query, chunks)
+#         chunks = retriever.retrieve(query, final_n=5)
+#         result = generator.generate(query, chunks)
 
-        print(f"\nANSWER:\n{result.answer}")
-        print(f"\nSOURCES USED ({len(result.context_chunks)}):")
-        for i, c in enumerate(result.context_chunks, 1):
-            meta = c.get("metadata", {})
-            label = meta.get("rule_number") or meta.get("term") or c.get("chunk_id")
-            print(f"  [{i}] {label}  (CE={c.get('cross_encoder_score', 0):+.3f})")
+#         print(f"\nANSWER:\n{result.answer}")
+#         print(f"\nSOURCES USED ({len(result.context_chunks)}):")
+#         for i, c in enumerate(result.context_chunks, 1):
+#             meta = c.get("metadata", {})
+#             label = meta.get("rule_number") or meta.get("term") or c.get("chunk_id")
+#             print(f"  [{i}] {label}  (CE={c.get('cross_encoder_score', 0):+.3f})")

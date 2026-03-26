@@ -40,5 +40,5 @@ jobs:
 
           # 6. Force push this clean version to Hugging Face
           git push --force \
-            https://saadimam:${HF_TOKEN}@huggingface.co/spaces/saadimam/Basketball-Intelligence-RAG \
+            https://saadimam:${HF_TOKEN}@huggingface.co/spaces/saadimam/Basketball-RAG \
             main

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 import textwrap
 from dataclasses import dataclass, field
 from typing import Optional # for static type hints
@@ -12,9 +13,8 @@ from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-JUDGE_MODEL_ID     = "meta-llama/llama-3.2-3b-instruct:free" #using the smaller gemma model for evaluation
-
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+JUDGE_MODEL_ID = "tiny-aya-global"
 # Lightweight bi-encoder for relevancy cosine similarity.
 # all-MiniLM-L6-v2 is 80MB, fast on CPU, well-suited for short sentence similarity.
 SIM_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
@@ -60,13 +60,13 @@ class EvalResult:
 class RAGJudge:
 
     def __init__(self, verbose: bool = True):
-        if not OPENROUTER_API_KEY:
-            raise ValueError("OPENROUTER_API_KEY not found. ")
+        if not COHERE_API_KEY:
+            raise ValueError("COHERE_API_KEY not found.")
         self.verbose = verbose
         self._log("Loading judge LLM client...")
         self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY,
+            base_url="https://api.cohere.ai/compatibility/v1",
+            api_key=COHERE_API_KEY,
         )
         self._log(f"Loading sentence similarity model: {SIM_MODEL_NAME}...")
         self.sim_model = SentenceTransformer(SIM_MODEL_NAME)

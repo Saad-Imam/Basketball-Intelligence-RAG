@@ -10,11 +10,13 @@ load_dotenv()
 # HF_TOKEN      = os.getenv("HF_TOKEN")   # set in .env locally, HF Spaces Secret in prod
 # MODEL_ID       = "mistralai/Mistral-7B-Instruct-v0.3" # unfortunatley not available anymore freely
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-MODEL_ID           = "google/gemma-3-12b-it:free"
+# --- UPDATED SECTION ---
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+MODEL_ID     = "llama-3.1-8b-instant"  # Groq's model ID
+# -----------------------
 
-MAX_NEW_TOKENS  = 1024
-TEMPERATURE     = 0.2    # low — we want factual, grounded answers
+MAX_NEW_TOKENS  = 512
+TEMPERATURE     = 0.2    
 TOP_P           = 0.9
 # REPETITION_PENALTY = 1.15  # mild penalty to stop the model looping on rule text
 
@@ -131,9 +133,9 @@ class BasketballGenerator:
       - Works identically locally and on HF Spaces
     """
     def __init__(self, model_id: str = MODEL_ID, verbose: bool = True):
-        if not OPENROUTER_API_KEY:
+        if not GROQ_API_KEY:
             raise ValueError(
-                "OPENROUTER_API_KEY not found. "
+                "GROQ_API_KEY not found. "
                 "Set it in .env locally or as a Space secret on HuggingFace."
             )
         self.model_id = model_id
@@ -141,10 +143,10 @@ class BasketballGenerator:
  
         # OpenRouter is OpenAI-API-compatible — just swap the base_url
         self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY,
+            base_url="https://api.groq.com/openai/v1",
+            api_key=GROQ_API_KEY,
         )
-        self._log(f"Generator ready — model: {model_id} via OpenRouter")
+        self._log(f"Generator ready — model: {model_id} via Groq")
 
     def _log(self, msg: str) -> None:
         if self.verbose:

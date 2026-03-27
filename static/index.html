@@ -1,3 +1,11 @@
+Here is the complete index.html file. I have added the Claims Detail Modal, styled the faithfulness cards to be interactive (including a hover effect and "Click for details" hint), and updated the JavaScript to populate the modal with the specific claims, verdicts, and reasoning returned by the judge.
+
+code
+Html
+play_circle
+download
+content_copy
+expand_less
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,7 +40,6 @@
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 15px; line-height: 1.65; overflow: hidden; }
     body::before { content: ''; position: fixed; inset: 0; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events: none; z-index: 0; }
 
-    /* ── Shell ── */
     #shell { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
     #topbar { display: flex; align-items: center; justify-content: flex-end; padding: 0 24px; height: 48px; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; z-index: 10; gap: 12px; }
 
@@ -54,7 +61,6 @@
     #convo::-webkit-scrollbar { width: 4px; }
     #convo::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-    /* ── Welcome ── */
     #welcome { margin: auto; text-align: center; animation: fadeUp 600ms ease both; }
     @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
     #logo-lockup { display: flex; align-items: center; justify-content: center; gap: 20px; }
@@ -66,7 +72,6 @@
     #ai-text { font-family: var(--font-head); font-size: 96px; line-height: 1; letter-spacing: 6px; color: var(--accent); text-shadow: 0 0 40px rgba(232,135,42,.25), 0 2px 0 rgba(0,0,0,.6); user-select: none; }
     #welcome .tagline { margin-top: 22px; font-size: 13px; color: var(--text-dim); font-style: italic; }
 
-    /* ── Turn ── */
     .turn { animation: fadeUp 300ms ease both; max-width: 780px; width: 100%; margin: 0 auto; }
     .turn-query { font-family: var(--font-head); font-size: 20px; letter-spacing: 1.5px; color: var(--text); padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 10px; }
     .turn-query::before { content: 'Q'; font-size: 11px; font-family: var(--font-mono); color: var(--accent); letter-spacing: 2px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: 3px; flex-shrink: 0; }
@@ -80,9 +85,12 @@
     .chip-num { font-family: var(--font-mono); font-size: 10px; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 1px 5px; flex-shrink: 0; }
     .chip-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    /* ── Eval score strip (per-query) ── */
     .eval-strip { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; animation: fadeUp 300ms ease both; }
-    .eval-card { flex: 1; min-width: 140px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; }
+    .eval-card { flex: 1; min-width: 140px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; position: relative; transition: border-color var(--transition), transform var(--transition); }
+    .eval-card.clickable { cursor: pointer; }
+    .eval-card.clickable:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .eval-card.clickable::after { content: 'DETAILS ↗'; position: absolute; top: 10px; right: 12px; font-family: var(--font-mono); font-size: 7px; color: var(--accent); opacity: 0.6; letter-spacing: 0.5px; }
+
     .eval-card-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 4px; }
     .eval-card-score { font-family: var(--font-mono); font-size: 22px; font-weight: 500; }
     .eval-card-score.good { color: var(--green); }
@@ -101,7 +109,6 @@
     .skeleton-line { height: 14px; background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 3px; margin-bottom: 10px; }
     @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
-    /* ── Input bar ── */
     #input-bar { padding: 16px clamp(24px, 8vw, 120px) 24px; background: var(--bg); border-top: 1px solid var(--border); }
     #input-wrap { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; max-width: 780px; margin: 0 auto; transition: border-color var(--transition), box-shadow var(--transition); }
     #input-wrap:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232,135,42,.12); }
@@ -113,9 +120,6 @@
     #send-btn svg { width: 16px; height: 16px; fill: #fff; }
     #hint { margin-top: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); text-align: center; }
 
-    /* ══════════════════════════════
-       SOURCE PANEL
-    ══════════════════════════════ */
     #panel-backdrop { display: none; position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.45); backdrop-filter: blur(2px); }
     #panel-backdrop.open { display: block; animation: fadein 200ms ease both; }
     @keyframes fadein { from{opacity:0} to{opacity:1} }
@@ -150,9 +154,6 @@
     .nav-btn:disabled { opacity: .3; cursor: not-allowed; }
     #nav-counter { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); }
 
-    /* ══════════════════════════════
-       EVALUATION MODAL
-    ══════════════════════════════ */
     #eval-modal-wrap { display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.7); backdrop-filter: blur(6px); align-items: center; justify-content: center; }
     #eval-modal-wrap.open { display: flex; animation: fadein 200ms ease both; }
     #eval-modal { width: min(760px, 95vw); max-height: 90vh; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; display: flex; flex-direction: column; box-shadow: 0 24px 80px rgba(0,0,0,.6); overflow: hidden; }
@@ -173,7 +174,6 @@
     #eval-results-area::-webkit-scrollbar { width: 3px; }
     #eval-results-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-    /* result rows */
     .eval-row { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; animation: fadeUp 300ms ease both; }
     .eval-row-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; cursor: pointer; transition: background var(--transition); }
     .eval-row-header:hover { background: rgba(255,255,255,.02); }
@@ -193,7 +193,6 @@
     .eval-question-row { font-size: 11px; color: var(--text-dim); margin-bottom: 3px; display: flex; justify-content: space-between; gap: 8px; }
     .eval-question-sim { font-family: var(--font-mono); font-size: 10px; color: var(--accent); flex-shrink: 0; }
 
-    /* summary footer */
     #eval-summary { display: none; border-top: 1px solid var(--border); padding: 16px 24px; flex-shrink: 0; }
     #eval-summary.show { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
     .summary-stat { display: flex; flex-direction: column; gap: 2px; }
@@ -201,6 +200,23 @@
     .summary-stat-val { font-family: var(--font-mono); font-size: 24px; font-weight: 500; }
     .summary-sep { width: 1px; height: 36px; background: var(--border); }
     .summary-note { font-size: 12px; color: var(--text-dim); font-style: italic; flex: 1; }
+
+    /* ── CLAIMS DETAIL MODAL (NEW) ── */
+    #claims-popup-wrap { display: none; position: fixed; inset: 0; z-index: 110; background: rgba(0,0,0,.75); backdrop-filter: blur(4px); align-items: center; justify-content: center; }
+    #claims-popup-wrap.open { display: flex; animation: fadein 200ms ease both; }
+    #claims-popup { width: min(640px, 90vw); max-height: 75vh; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; box-shadow: 0 32px 64px rgba(0,0,0,.6); }
+    #claims-popup-header { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 60px; border-bottom: 1px solid var(--border); }
+    #claims-popup-title { font-family: var(--font-head); font-size: 20px; letter-spacing: 2px; color: var(--accent); }
+    #claims-popup-close { width: 30px; height: 30px; background: none; border: 1px solid var(--border); border-radius: 5px; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    #claims-popup-body { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+    .claim-detail-item { display: flex; gap: 16px; align-items: flex-start; }
+    .claim-badge { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11px; font-weight: bold; }
+    .claim-badge.supported { background: rgba(62,207,142,.15); color: var(--green); border: 1px solid var(--green); }
+    .claim-badge.not-supported { background: rgba(224,92,92,.15); color: var(--red); border: 1px solid var(--red); }
+    .claim-content { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+    .claim-text-main { font-size: 14px; color: var(--text); font-weight: 500; line-height: 1.4; }
+    .claim-reasoning-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; font-size: 12px; line-height: 1.6; color: var(--text-dim); position: relative; }
+    .claim-reasoning-box::before { content: 'LLM REASONING'; position: absolute; top: -7px; left: 10px; font-family: var(--font-mono); font-size: 8px; background: var(--surface2); padding: 0 6px; color: var(--text-faint); letter-spacing: 1px; }
 
     * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
     @media (max-width: 600px) { #ai-text { font-size: 64px; } #ball-wrap, #ball-wrap svg { width: 60px; height: 60px; } :root { --panel-w: 100vw; } }
@@ -256,7 +272,6 @@
   </main>
 </div>
 
-<!-- Source panel -->
 <div id="panel-backdrop" onclick="closePanel()"></div>
 <div id="source-panel">
   <div id="panel-header">
@@ -286,7 +301,6 @@
   </div>
 </div>
 
-<!-- Eval modal -->
 <div id="eval-modal-wrap">
   <div id="eval-modal">
     <div id="eval-modal-header">
@@ -316,6 +330,16 @@
   </div>
 </div>
 
+<div id="claims-popup-wrap">
+  <div id="claims-popup">
+    <div id="claims-popup-header">
+      <div id="claims-popup-title">FAITHFULNESS ANALYSIS</div>
+      <button id="claims-popup-close" onclick="closeClaimsPopup()">✕</button>
+    </div>
+    <div id="claims-popup-body"></div>
+  </div>
+</div>
+
 <script>
   const convo     = document.getElementById('convo');
   const welcome   = document.getElementById('welcome');
@@ -336,9 +360,14 @@
   function setStatus(cls, label) { statusDot.className = ''; statusDot.classList.add(cls); statusLbl.textContent = label; }
   input.addEventListener('input', () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 120) + 'px'; });
   input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuery(); } });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePanel(); if (evalOpen) closeEvalModal(); } });
+  document.addEventListener('keydown', e => { 
+    if (e.key === 'Escape') { 
+      closePanel(); 
+      if (evalOpen) closeEvalModal();
+      closeClaimsPopup();
+    } 
+  });
 
-  /* ── SEND QUERY ── */
   async function sendQuery() {
     const query = input.value.trim();
     if (!query || busy) return;
@@ -381,23 +410,31 @@
         turn.appendChild(wrap); turn._sources = sources;
       }
 
-      /* Eval score strip */
       if (data.faithfulness && data.relevancy) {
         const fScore = data.faithfulness.score, rScore = data.relevancy.score;
         const strip = document.createElement('div'); strip.className = 'eval-strip';
-        strip.innerHTML = `
-          <div class="eval-card">
+        
+        const fCard = document.createElement('div');
+        fCard.className = 'eval-card clickable';
+        fCard.innerHTML = `
             <div class="eval-card-label">Faithfulness</div>
             <div class="eval-card-score ${scoreClass(fScore)}">${(fScore*100).toFixed(0)}%</div>
             <div class="eval-card-sub">${data.faithfulness.supported_count} / ${data.faithfulness.total} claims supported</div>
             <div class="eval-bar-wrap"><div class="eval-bar ${scoreClass(fScore)}" style="width:${(fScore*100).toFixed(1)}%"></div></div>
-          </div>
-          <div class="eval-card">
+        `;
+        fCard.onclick = () => openClaimsPopup(data.faithfulness.claims);
+
+        const rCard = document.createElement('div');
+        rCard.className = 'eval-card';
+        rCard.innerHTML = `
             <div class="eval-card-label">Relevancy</div>
             <div class="eval-card-score ${scoreClass(rScore)}">${rScore.toFixed(3)}</div>
             <div class="eval-card-sub">mean cosine similarity (0–1)</div>
             <div class="eval-bar-wrap"><div class="eval-bar ${scoreClass(rScore)}" style="width:${(rScore*100).toFixed(1)}%"></div></div>
-          </div>`;
+        `;
+
+        strip.appendChild(fCard);
+        strip.appendChild(rCard);
         turn.appendChild(strip);
       }
 
@@ -427,7 +464,6 @@
     openPanel(turn._sources, idx, turn);
   }
 
-  /* ── SOURCE PANEL ── */
   function openPanel(sources, idx, turn) {
     panelSources = sources; panelIndex = Math.max(0, Math.min(idx, sources.length-1));
     turn._sources = sources; renderPanelSource(); syncActiveStyles(turn);
@@ -477,7 +513,6 @@
     document.getElementById('pane-text').classList.toggle('active', tab==='text');
   }
 
-  /* ── EVAL MODAL ── */
   async function startEval() {
     if (busy) return;
     busy = true; evalBtn.disabled = true; sendBtn.disabled = true; setStatus('busy', 'EVALUATING');
@@ -551,8 +586,7 @@
     const row  = document.createElement('div'); row.className = 'eval-row';
     let claimsHtml = '';
     if (msg.claims?.length) {
-      claimsHtml = `<div class="eval-mini-label">Claims (${msg.claims.filter(c=>c.supported).length}/${msg.claims.length} supported)</div>`;
-      msg.claims.forEach(c => { claimsHtml += `<div class="eval-claim-row"><span class="eval-claim-icon ${c.supported?'yes':'no'}">${c.supported?'✓':'✗'}</span><span>${escHtml(c.claim)}</span></div>`; });
+      claimsHtml = `<div class="eval-mini-label" style="cursor:pointer; text-decoration: underline;" onclick='openClaimsPopup(${JSON.stringify(msg.claims)})'>View Claims & Reasons (${msg.claims.filter(c=>c.supported).length}/${msg.claims.length} supported)</div>`;
     }
     let questionsHtml = '';
     if (msg.questions?.length) {
@@ -579,6 +613,33 @@
     const row  = document.createElement('div'); row.className = 'eval-row';
     row.innerHTML = `<div class="eval-row-header"><span class="eval-row-num" style="border-color:var(--red);color:var(--red)">ERR</span><span class="eval-row-query">${escHtml(msg.query)}</span><span style="font-family:var(--font-mono);font-size:10px;color:var(--red)">${escHtml(msg.message)}</span></div>`;
     area.appendChild(row);
+  }
+
+  function openClaimsPopup(claims) {
+    const body = document.getElementById('claims-popup-body');
+    body.innerHTML = '';
+    
+    claims.forEach((c, idx) => {
+        const item = document.createElement('div');
+        item.className = 'claim-detail-item';
+        const badgeClass = c.supported ? 'supported' : 'not-supported';
+        const badgeIcon = c.supported ? '✓' : '✗';
+        
+        item.innerHTML = `
+            <div class="claim-badge ${badgeClass}">${badgeIcon}</div>
+            <div class="claim-content">
+                <div class="claim-text-main">${escHtml(c.claim)}</div>
+                <div class="claim-reasoning-box">${escHtml(c.reasoning || 'No specific reasoning provided.')}</div>
+            </div>
+        `;
+        body.appendChild(item);
+    });
+
+    document.getElementById('claims-popup-wrap').classList.add('open');
+  }
+
+  function closeClaimsPopup() {
+    document.getElementById('claims-popup-wrap').classList.remove('open');
   }
 
   function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }

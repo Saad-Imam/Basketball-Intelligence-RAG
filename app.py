@@ -2,6 +2,7 @@ import os
 import time
 import json
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -271,6 +272,11 @@ async def run_evaluation():
             except Exception as e:
                 log.exception(f"Eval failed for query {i}: {query}")
                 yield sse({"type": "error", "index": i, "query": query, "message": str(e)})
+
+            # Add buffer due to api rate limits being reached
+            if i < total - 1:
+                yield sse({"type": "waiting", "seconds": 60})
+                await asyncio.sleep(60)    
  
         # Final summary
         if all_results:

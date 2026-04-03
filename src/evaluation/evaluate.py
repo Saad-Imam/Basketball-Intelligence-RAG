@@ -13,8 +13,8 @@ from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
-COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-JUDGE_MODEL_ID = "tiny-aya-global"
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+JUDGE_MODEL_ID = "gemma-3-4b-it"
 # Lightweight bi-encoder for relevancy cosine similarity.
 # all-MiniLM-L6-v2 is 80MB, fast on CPU, well-suited for short sentence similarity.
 SIM_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
@@ -60,13 +60,13 @@ class EvalResult:
 class RAGJudge:
 
     def __init__(self, verbose: bool = True):
-        if not COHERE_API_KEY:
-            raise ValueError("COHERE_API_KEY not found.")
+        if not GOOGLE_API_KEY:
+            raise ValueError("GOOGLE_API_KEY not found.")
         self.verbose = verbose
         self._log("Loading judge LLM client...")
         self.client = OpenAI(
-            base_url="https://api.cohere.ai/compatibility/v1",
-            api_key=COHERE_API_KEY,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=GOOGLE_API_KEY,
         )
         self._log(f"Loading sentence similarity model: {SIM_MODEL_NAME}...")
         self.sim_model = SentenceTransformer(SIM_MODEL_NAME)

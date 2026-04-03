@@ -136,7 +136,7 @@ class RAGJudge:
         Returns a ClaimVerification with supported=True/False + a short reasoning.
         """
         prompt = textwrap.dedent(f"""
-            You are a strict fact-checker.
+            You are a reasonable and accurate fact-checker.
 
             CONTEXT (retrieved from a basketball rulebook / encyclopedia):
             {context}
@@ -144,11 +144,12 @@ class RAGJudge:
             CLAIM TO VERIFY:
             {claim}
 
-            Does the CONTEXT directly support this claim?
+            TASK: Does the CONTEXT support this claim?
             Rules:
-            - Answer "SUPPORTED" only if the context explicitly states or clearly implies the claim.
-            - Answer "NOT SUPPORTED" if the claim is absent, contradicted, or requires outside knowledge.
-            - Do not use your own basketball knowledge — judge only from the CONTEXT above.
+            - Answer "SUPPORTED" if the claim is explicitly stated OR reasonably implied by the context.
+            - Allow for synonyms and paraphrasing (e.g., if the text says someone is a "post player", it supports the claim that they "play in the post").
+            - Answer "NOT SUPPORTED" only if the claim is entirely missing, directly contradicted, or requires outside knowledge.
+            # - Do not use your own basketball knowledge — judge only from the CONTEXT above.
 
             Respond in this exact format (two lines):
             VERDICT: SUPPORTED   or   VERDICT: NOT SUPPORTED

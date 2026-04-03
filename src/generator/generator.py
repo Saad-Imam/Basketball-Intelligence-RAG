@@ -109,7 +109,7 @@ def build_prompt(query: str, context_chunks: list[dict]) -> tuple[str, str]:
            - Structure your answer logically.
            - Use short paragraphs and line breaks to separate distinct ideas. 
            - Use bullet points if listing multiple rules, steps, or differences.
-        #    - Do NOT output a single massive wall of text.                            
+           - Do NOT output a single massive wall of text.                            
         5. TONE: Be explanatory and easy to understand. Synthesize the context naturally instead of awkwardly stringing quotes together.
     """).strip()
 
@@ -192,12 +192,16 @@ class BasketballGenerator:
             # for gemma models, system role isn't supported in chat template, so we merge it with the user message
             response = self.client.chat.completions.create(
                 model=self.model_id,
+                # gemma needed this, for llama I can separate it
+                # messages=[ 
+                # {
+                # "role": "user",
+                # "content": f"{system_prompt}\n\n{user_message}",
+                # },
                 messages=[
-                {
-                "role": "user",
-                "content": f"{system_prompt}\n\n{user_message}",
-                },
-    ],
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_message},
+                ],
             max_tokens=max_new_tokens,
             temperature=temperature,
             top_p=top_p,)

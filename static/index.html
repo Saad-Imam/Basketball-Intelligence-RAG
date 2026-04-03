@@ -67,8 +67,8 @@
     .turn { animation: fadeUp 300ms ease both; max-width: 780px; width: 100%; margin: 0 auto; }
     .turn-query { font-family: var(--font-head); font-size: 20px; letter-spacing: 1.5px; color: var(--text); padding-bottom: 12px; border-bottom: 1px solid var(--border); display: flex; align-items: baseline; gap: 10px; }
     .turn-query::before { content: 'Q'; font-size: 11px; font-family: var(--font-mono); color: var(--accent); letter-spacing: 2px; padding: 2px 6px; border: 1px solid var(--accent); border-radius: 3px; flex-shrink: 0; }
-    .turn-answer { margin-top: 16px; font-size: 14.5px; line-height: 1.8; color: var(--text); }
-    .cite { font-family: var(--font-mono); font-size: 10px; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 1px 5px; margin: 0 2px; vertical-align: middle; cursor: pointer; background: transparent; transition: background var(--transition), color var(--transition); display: inline-block; }
+    .turn-answer { margin-top: 16px; font-size: 14.5px; line-height: 1.8; color: var(--text); white-space: pre-wrap; }
+    .turn-answer strong { color: var(--accent); font-weight: 700; letter-spacing: 0.5px; }    .cite { font-family: var(--font-mono); font-size: 10px; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 1px 5px; margin: 0 2px; vertical-align: middle; cursor: pointer; background: transparent; transition: background var(--transition), color var(--transition); display: inline-block; }
     .cite:hover, .cite.active { background: var(--accent); color: #000; }
 
     .source-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
@@ -447,8 +447,34 @@
 
   function scoreClass(s) { return s >= 0.75 ? 'good' : s >= 0.4 ? 'mid' : 'poor'; }
   function formatAnswer(text) {
-    return escHtml(text).replace(/\[Source\s?(\d+)\]/gi, (_, n) =>
-      `<span class="cite" data-src-idx="${parseInt(n,10)-1}" onclick="openPanelFromCite(event,${parseInt(n,10)-1})">[Source ${n}]</span>`);
+    // 1. Escape HTML first for security
+    let formatted = escHtml(text);
+    
+    // 2. Convert Markdown bold to HTML strong tags
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // 3. Format citations (Handles multiple sources in one bracket)
+    // First, find everything inside brackets: [ ... ]
+    formatted = formatted.replace(/\[([^\]]+)\]/g, (match, inner) => {
+      
+      // If the text inside the brackets contains the word "Source"
+      if (/Source/i.test(inner)) {
+        
+        // Find EVERY "Source N" inside those brackets and turn it into a button
+        let buttonized = inner.replace(/Sources?\s?(\d+)/gi, (m, n) => {
+          const idx = parseInt(n, 10) - 1;
+          return `<span class="cite" data-src-idx="${idx}" onclick="openPanelFromCite(event,${idx})">[Source ${n}]</span>`;
+        });
+        
+        // Return the new buttons (and any extra text like ", Section II") 
+        return buttonized; 
+      }
+      
+      // If it's not a citation, leave the brackets alone
+      return match;
+    });
+    
+    return formatted;
   }
   function openPanelFromCite(event, idx) {
     const turn = event.target.closest('.turn');

@@ -253,11 +253,11 @@ class BasketballRetriever:
         dense, sparse = self._encode_query(query)
 
         self._log(f"Dense search  (alpha=1.0, top_k={top_k_dense})...")
-        dense_results  = self._pinecone_query(dense, sparse, alpha=1.0,top_k=top_k_dense,metadata_filter=metadata_filter)
-
+        # dense_results  = self._pinecone_query(dense, sparse, alpha=1.0,top_k=top_k_dense,metadata_filter=metadata_filter)
+        dense_results = []
         self._log(f"Sparse search (alpha=0.0, top_k={top_k_sparse})...")
-        # sparse_results = self._pinecone_query(dense, sparse, alpha=0.0,top_k=top_k_sparse,metadata_filter=metadata_filter)
-        sparse_results = []
+        sparse_results = self._pinecone_query(dense, sparse, alpha=0.0,top_k=top_k_sparse,metadata_filter=metadata_filter)
+        
         self._log("RRF fusion...")
         rrf_results = self._rrf(dense_results, sparse_results, k=RRF_K)
         self._log(f"  {len(rrf_results)} unique candidates after RRF")

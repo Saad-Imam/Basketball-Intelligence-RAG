@@ -3,17 +3,23 @@ import os
 import re
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
+from transformers import AutoTokenizer
 
 # Folder containing your raw scraped JSON files
 # Each subfolder (Glossary/, Offense/, Defense/) contains .json files
 RAW_INPUT = Path("corpus/raw/layer2_hoopstudent.json")
 
-# Where to write the final standardized chunk file
-OUTPUT_DIR = Path("corpus/processed")
-OUTPUT_FILE = OUTPUT_DIR / "layer2_chunks.json"
+OUTPUT_DIR  = Path("corpus/processed")
+OUTPUT_FILE = OUTPUT_DIR / "layer2_chunks_fixed.json"
 
-# Minimum character length for a section to become a chunk
-# Sections shorter than this are merged into the definition chunk or skipped
+# Tokenizer — must match the embedding model used in embedding_indexing.py
+TOKENIZER_MODEL = "BAAI/bge-m3"
+
+# Fixed-size chunking settings (mirror the values in preprocess_layer1.py)
+CHUNK_SIZE    = 400   # tokens per chunk
+CHUNK_OVERLAP = 50    # sliding-window overlap between consecutive chunks
+
+# Minimum character length for a section to be included in the full text
 MIN_SECTION_CHARS = 80
 
 # Sections to skip entirely 
@@ -42,135 +48,115 @@ def is_noise_section(text: str) -> bool:
     return len(text.strip()) < MIN_SECTION_CHARS
 
 
-def build_definition_chunk(doc: dict, chunk_index: int) -> HoopStudentChunk:
-    """
-    Creates a single high-priority chunk from the concise_definition field.
+def split_into_fixed_chunks(text: str, tokenizer: AutoTokenizer,
+                            chunk_size: int = CHUNK_SIZE,
+                            overlap: int = CHUNK_OVERLAP,) -> list[str]:
+    token_ids = tokenizer.encode(text, add_special_tokens=False)
 
-    This chunk is short and dense — it retrieves well for exact queries
-    like "what is a pick and roll?" because the term name and definition
-    are both in the same small text window.
+    chunks: list[str] = []
+    start = 0
+    while start < len(token_ids):
+        end        = min(start + chunk_size, len(token_ids))
+        chunk_text = tokenizer.decode(token_ids[start:end], skip_special_tokens=True)
+        if chunk_text.strip():
+            chunks.append(chunk_text.strip())
+        if end >= len(token_ids):
+            break
+        start += chunk_size - overlap
 
-    Format:
-      "{term}: {concise_definition}"
-    """
-    term = doc["term"]
-    definition = doc["concise_definition"].strip()
-
-    # Remove redundant "term : " prefix that the scraper sometimes includes
-    # e.g. "1-1-2-1 press defense : Basketball strategy that..."
-    # becomes just "Basketball strategy that..."
-    clean_def = re.sub(
-        r'^' + re.escape(term) + r'\s*[:\-–]\s*',
-        '',
-        definition,
-        flags=re.IGNORECASE
-    ).strip()
-
-    # Enriched text: term name is explicit so BM25 matches it
-    enriched_text = f"{term}: {clean_def}"
-
-    chunk_id = f"{doc['doc_id']}_definition"
-
-    metadata = {
-        "source": "hoopstudent",
-        "layer": 2,
-        "layer_name": "plays_and_actions",
-        "doc_id": doc["doc_id"],
-        "term": term,
-        "category": doc.get("category", ""),
-        "source_site": doc.get("source_site", "hoopstudent"),
-        "source_url": doc.get("source_url", ""),
-        "chunk_type": "definition",
-        "section_heading": "Definition"
-    }
-
-    return HoopStudentChunk(
-        chunk_id=chunk_id,
-        doc_id=doc["doc_id"],
-        text=enriched_text,
-        metadata=metadata,
-    )
+    return chunks
 
 
-def build_section_chunk(
+def process_document_fixed_size(
     doc: dict,
-    section: dict,
-    section_index: int,
-) -> HoopStudentChunk | None:
+    tokenizer: AutoTokenizer,
+) -> list[HoopStudentChunk]:
     """
-    Creates one chunk from a single section of a HoopStudent document.
+    Converts one HoopStudent document into fixed-size token chunks.
 
-    The context prefix prepends the term name and section heading so that
-    BM25 can match on the term name even when querying a section-level chunk.
+    All text for a term (concise definition + every non-noise section) is
+    concatenated into a single string in reading order, then split with a
+    sliding-window tokenizer. 
 
-    Format:
-      "{term} — {section_heading}:\n\n{section_text}"
-
-    Returns None if the section should be skipped.
+    The term name is prepended as a context prefix on every chunk so that
+    BM25 can still match an exact term query (e.g. "pick and roll") even when
+    the term name itself isn't repeated inside the chunk body.
     """
     term = doc["term"]
-    heading = section.get("heading", "").strip()
-    text = section.get("text", "").strip()
 
-    # Skip navigation/boilerplate sections
-    if is_skip_heading(heading):
-        return None
+    # Step 1 
+    parts: list[str] = []
 
-    # Skip sections with no meaningful content
-    if is_noise_section(text):
-        return None
-
-    # Build enriched text: term + heading + body
-    #  With the prefix, BM25 and the dense
-    # embedder both understand the full context.
-    if heading:
-        enriched_text = f"{term} — {heading}:\n\n{text}"
-    else:
-        enriched_text = f"{term}:\n\n{text}"
-
-    chunk_id = f"{doc['doc_id']}_section_{section_index:03d}"
-
-    metadata = {
-        "source": "hoopstudent",
-        "layer": 2,
-        "layer_name": "plays_and_actions",
-        "doc_id": doc["doc_id"],
-        "term": term,
-        "category": doc.get("category", ""),
-        "source_site": doc.get("source_site", "hoopstudent"),
-        "source_url": doc.get("source_url", ""),
-        "chunk_type": "section",
-        "section_heading": heading
-    }
-
-    return HoopStudentChunk(
-        chunk_id=chunk_id,
-        doc_id=doc["doc_id"],
-        text=enriched_text,
-        metadata=metadata,
-    )
-
-def process_document(doc: dict) -> list[HoopStudentChunk]:
-    """
-    Takes one raw hoopstudent document and returns a list of chunks.
-
-    One document = one term page on hoopstudent.com
-    Output = 1 definition chunk + N section chunks
-    """
-    chunks = []
-
-    # Always create a definition chunk — even if very short
-    # This is the "anchor" chunk for exact-match queries
+    # Concise definition first — densest signal for exact-match queries
     if doc.get("concise_definition"):
-        def_chunk = build_definition_chunk(doc, chunk_index=0)
-        chunks.append(def_chunk)
+        raw_def = doc["concise_definition"].strip()
+        # Strip any redundant "term : " prefix the scraper sometimes includes
+        clean_def = re.sub(
+            r"^" + re.escape(term) + r"\s*[:\-–]\s*",
+            "",
+            raw_def,
+            flags=re.IGNORECASE,
+        ).strip()
+        parts.append(f"{term}: {clean_def}")
 
-    # Create one chunk per section
-    sections = doc.get("sections", [])
-    for i, section in enumerate(sections):
-        section_chunk = build_section_chunk(doc, section, section_index=i)
-        if section_chunk is not None:
-            chunks.append(section_chunk)
+    # Sections in document order
+    for section in doc.get("sections", []):
+        heading = section.get("heading", "").strip()
+        text    = section.get("text",    "").strip()
+
+        if is_skip_heading(heading) or is_noise_section(text):
+            continue
+
+        # Include the section heading
+        if heading:
+            parts.append(f"{heading}:\n{text}")
+        else:
+            parts.append(text)
+
+    if not parts:
+        return []
+
+    full_text = "\n\n".join(parts)
+    # Collapse runs of 3+ newlines to avoid wasting tokens on whitespace
+    full_text = re.sub(r"\n{3,}", "\n\n", full_text).strip()
+
+    # Step 2 
+    raw_chunks = split_into_fixed_chunks(full_text, tokenizer)
+
+    # Step 3 
+    chunks: list[HoopStudentChunk] = []
+
+    for i, chunk_text in enumerate(raw_chunks):
+        if len(chunk_text.strip()) < MIN_SECTION_CHARS:
+            continue
+
+        # Prepend the term name so every chunk is self-contained for retrieval
+        enriched_text = f"{term}:\n\n{chunk_text}"
+        chunk_id      = f"{doc['doc_id']}_fschunk_{i:03d}"
+
+        metadata = {
+            "source":        "hoopstudent",
+            "layer":         2,
+            "layer_name":    "plays_and_actions",
+            "doc_id":        doc["doc_id"],
+            "term":          term,
+            "category":      doc.get("category", ""),
+            "source_site":   doc.get("source_site", "hoopstudent"),
+            "source_url":    doc.get("source_url", ""),
+            "chunk_type":    "fixed_size",
+            # "chunk_index":   i,
+            # "chunk_size":    CHUNK_SIZE,
+            # "chunk_overlap": CHUNK_OVERLAP,
+            # Kept for schema compatibility with the section-based version
+            "section_heading": None,
+        }
+
+        chunks.append(HoopStudentChunk(
+            chunk_id=chunk_id,
+            doc_id=doc["doc_id"],
+            text=enriched_text,
+            metadata=metadata,
+        ))
 
     return chunks
 
@@ -211,10 +197,15 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print("LAYER 2 PREPROCESSING — HoopStudent")
+    print("LAYER 2 PREPROCESSING — HoopStudent  [fixed-size chunking]")
     print("=" * 60)
-    print(f"Input file      : {RAW_INPUT}")
-    print(f"Output file     : {OUTPUT_FILE}")
+    print(f"Input file  : {RAW_INPUT}")
+    print(f"Output file : {OUTPUT_FILE}")
+
+    # Load tokenizer once
+    print(f"\nLoading tokenizer ({TOKENIZER_MODEL})...")
+    tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
+    print(f"  Tokenizer ready. Chunk size: {CHUNK_SIZE} tokens, overlap: {CHUNK_OVERLAP} tokens.")
 
     # Step 1: Load the single raw JSON file
     print(f"\nLoading raw data...")
@@ -226,12 +217,12 @@ def main():
 
     print(f"Loaded {len(documents)} documents.")
 
-    # Step 2: Process each document into chunks
-    print("\nChunking documents...")
+    # Step 2: Process each document into fixed-size chunks
+    print("\nChunking documents (fixed-size)...")
     all_chunks: list[HoopStudentChunk] = []
 
     for doc in documents:
-        doc_chunks = process_document(doc)
+        doc_chunks = process_document_fixed_size(doc, tokenizer)
         all_chunks.extend(doc_chunks)
 
     # Step 3: Print stats and sample output
@@ -243,8 +234,7 @@ def main():
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(output_data, f, ensure_ascii=False, indent=2)
 
-    print(f"\n Saved {len(all_chunks)} chunks to: {OUTPUT_FILE}")
-    print(f'  "{OUTPUT_FILE}"')
+    print(f"\n✓ Saved {len(all_chunks)} fixed-size chunks to: {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()

@@ -8,6 +8,7 @@ from typing import Optional
 from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.chunking import HybridChunker
+from transformers import AutoTokenizer
 
 # Config
 # NOTE: run this from repo root directory
@@ -33,13 +34,19 @@ RULEBOOKS = [
     
 ]
 
-# HybridChunker settings
+# HybridChunker settings (used internally for page-aware filtering only)
 TOKENIZER_MODEL = "BAAI/bge-m3"
 MAX_TOKENS = 500          # max tokens per chunk — keeps chunks under embedding limit
-MIN_SECTION_CHARS = 80    # skip sections shorter than this (
+MIN_SECTION_CHARS = 80    # skip sections shorter than this
+
+# Fixed-size chunking settings
+# CHUNK_SIZE is set below the embedding model's 512-token hard limit to leave
+# room for the context prefix (league + rulebook label) that gets prepended.
+CHUNK_SIZE    = 400   # tokens per chunk
+CHUNK_OVERLAP = 50    # sliding-window overlap between consecutive chunks
 
 OUTPUT_DIR = Path("corpus/processed")
-OUTPUT_FILE = OUTPUT_DIR / "layer1_rulebook_chunks.json"
+OUTPUT_FILE = OUTPUT_DIR / "layer1_rulebook_chunks_fixed.json"
 
 # A single chunk is defined as:
 
@@ -49,6 +56,30 @@ class RulebookChunk:
     doc_id: str
     text: str                    # chunk text WITH context prefix — this gets embedded
     metadata: dict = field(default_factory=dict)
+
+
+def split_into_fixed_chunks(text: str,tokenizer: AutoTokenizer,
+                            chunk_size: int = CHUNK_SIZE,
+                            overlap: int = CHUNK_OVERLAP,) -> list[str]:
+    """
+    Splits *text* into fixed-size token windows with *overlap* tokens.
+
+    Using the BGE-M3 tokenizer, as it is also our embedding model
+    """
+    token_ids = tokenizer.encode(text, add_special_tokens=False)
+
+    chunks: list[str] = []
+    start = 0
+    while start < len(token_ids):
+        end = min(start + chunk_size, len(token_ids))
+        chunk_text = tokenizer.decode(token_ids[start:end], skip_special_tokens=True)
+        if chunk_text.strip():
+            chunks.append(chunk_text.strip())
+        if end >= len(token_ids):
+            break
+        start += chunk_size - overlap
+
+    return chunks
 
 def parse_heading_path(headings: list[str]) -> dict:
     """
@@ -153,133 +184,137 @@ def is_noise_chunk(text: str) -> bool:
 
     return False
 
-def process_rulebook(config: dict) -> list[RulebookChunk]:
+def process_rulebook(config: dict, tokenizer: AutoTokenizer) -> list[RulebookChunk]:
     """
-    Converts one PDF to a list of RulebookChunk objects using Docling.
+    Converts one PDF into fixed-size RulebookChunk objects.
+
+    1. Parse the PDF with Docling (for PDF layout parsing).
+    2. Run HybridChunker to obtain page-number metadata per text segment,
+       which lets us follow the ``skip_pages``, to skip unwanted text.
+    3. After filtering, concatenate the remaining segment texts into one continuous
+       string and apply a sliding-window fixed-size tokenizer split.
+    4. Each output chunk gets a lightweight context prefix
+       (e.g. "NBA Rulebook:") so BM25 can still match on the league name.
     """
-    pdf_path = config["path"]
-    doc_id = config["doc_id"]
-    league = config["league"]
+    pdf_path   = config["path"]
+    doc_id     = config["doc_id"]
+    league     = config["league"]
     skip_pages = config.get("skip_pages", set())
 
     print(f"\n{'='*60}")
-    print(f"Processing: {pdf_path}")
+    print(f"Processing: {pdf_path}  [fixed-size chunking]")
     print(f"Skipping pages: {sorted(skip_pages)}")
 
     if not os.path.exists(pdf_path):
         print(f"  [!] File not found: {pdf_path} — skipping.")
         return []
 
-    # Step 1: Configure Docling pipeline
-    # we only parse text, so no tables/tablestructure , OCR disabled
-
+    # Step 1
     pipeline_options = PdfPipelineOptions(
-        do_ocr=False,                  
-        do_table_structure=False,      
-        generate_page_images=False,    
+        do_ocr=False,
+        do_table_structure=False,
+        generate_page_images=False,
     )
-
     converter = DocumentConverter(
-        format_options={
-            "pdf": PdfFormatOption(pipeline_options=pipeline_options)
-        }
+        format_options={"pdf": PdfFormatOption(pipeline_options=pipeline_options)}
     )
 
     print("Parsing PDF with Docling...")
     result = converter.convert(pdf_path)
-    doc = result.document
+    doc    = result.document
 
-    # Step 2: Run Docling's HybridChunker (first chunking strategy)
-    # It:
-    #   - Splits at heading boundaries (respects Rule → Section hierarchy)
-    #   - Merges short sections that fall below a sensible minimum
-    #   - Splits long sections at sentence boundaries if they exceed max_tokens
-    #   - Includes the parent heading path in chunk.meta.headings
-   
-    chunker = HybridChunker(
+    # Step 2 
+    chunker    = HybridChunker(
         tokenizer=TOKENIZER_MODEL,
         max_tokens=MAX_TOKENS,
-        merge_peers=True,    # merge tiny adjacent sections under the same heading
+        merge_peers=True,
     )
-
     raw_chunks = list(chunker.chunk(doc))
-    print(f"Raw chunks from Docling: {len(raw_chunks)}")
+    print(f"Raw segments from Docling: {len(raw_chunks)}")
 
-    # Step 3: Process each raw chunk into the RulebookChunk format defined earlier
-
-    processed_chunks = []
+    filtered_texts: list[str] = []
     skipped_count = 0
 
-    for i, raw_chunk in enumerate(raw_chunks):
+    for raw_chunk in raw_chunks:
         chunk_text = raw_chunk.text.strip()
 
-        # Skip noise chunks
-        if is_noise_chunk(chunk_text):
-            skipped_count += 1
-            continue
-
-        # Get page numbers this chunk spans
-        page_numbers = []
-        if hasattr(raw_chunk, 'meta') and hasattr(raw_chunk.meta, 'doc_items'):
+        # Collect page numbers this segment spans
+        page_numbers: list[int] = []
+        if hasattr(raw_chunk, "meta") and hasattr(raw_chunk.meta, "doc_items"):
             for item in raw_chunk.meta.doc_items:
-                if hasattr(item, 'prov'):
+                if hasattr(item, "prov"):
                     for prov in item.prov:
-                        if hasattr(prov, 'page_no'):
+                        if hasattr(prov, "page_no"):
                             page_numbers.append(prov.page_no)
         page_numbers = sorted(set(page_numbers))
 
-        # Skip if all pages are in the skip list (defined earlier)
+        # Drop segments whose pages are all in the skip list
         if page_numbers and all(p in skip_pages for p in page_numbers):
             skipped_count += 1
             continue
 
-        # Extract heading hierarchy from Docling metadata
-        headings = []
-        if hasattr(raw_chunk, 'meta') and hasattr(raw_chunk.meta, 'headings'):
-            headings = raw_chunk.meta.headings or []
+        # Drop noise segments (very short, pure page numbers, index entries)
+        if is_noise_chunk(chunk_text):
+            skipped_count += 1
+            continue
 
-        # Parse rule/section info from headings
-        heading_info = parse_heading_path(headings)
+        filtered_texts.append(chunk_text)
 
-        # Build context prefix for the chunk text
-        context_prefix = build_context_prefix(heading_info, league)
+    print(f"  Skipped segments (noise/index/diagrams): {skipped_count}")
+    print(f"  Segments kept for chunking: {len(filtered_texts)}")
 
-        # Final chunk text = prefix + content
-        # The prefix helps BM25 match rule numbers and section names explicitly
+    if not filtered_texts:
+        return []
+
+    # Step 3 
+    full_text = "\n\n".join(filtered_texts)
+    # Collapse runs of 3+ newlines so the tokenizer doesn't waste tokens on whitespace
+    full_text = re.sub(r"\n{3,}", "\n\n", full_text).strip()
+
+    raw_fixed_chunks = split_into_fixed_chunks(full_text, tokenizer, CHUNK_SIZE, CHUNK_OVERLAP)
+    print(f"  Fixed-size chunks produced: {len(raw_fixed_chunks)}")
+
+    # Step 4 — Build RulebookChunk objects with metadata
+    context_prefix = f"{league} Rulebook:\n\n"
+
+    processed_chunks: list[RulebookChunk] = []
+    for i, chunk_text in enumerate(raw_fixed_chunks):
+        if is_noise_chunk(chunk_text):
+            continue
+
         enriched_text = context_prefix + chunk_text
+        chunk_id      = f"{doc_id}_fschunk_{i:04d}"
 
-        # Build chunk ID
-        chunk_id = f"{doc_id}_chunk_{i:04d}"
-
-        # Build metadata dict (stored alongside the vector in Pinecone)
         metadata = {
-            "source": config["source"],
-            "layer": 1,
-            "layer_name": "rulebook",
-            "doc_id": doc_id,
-            "league": league,
-            "source_url": config["source_url"],
-            "chunk_type": heading_info["chunk_type"],
-            "rule_number": heading_info["rule_number"],
-            "rule_title": heading_info["rule_title"],
-            "section": heading_info["section"],
-            "section_title": heading_info["section_title"],
-            "headings_path": headings,
-            "page_numbers": page_numbers,
+            "source":         config["source"],
+            "layer":          1,
+            "layer_name":     "rulebook",
+            "doc_id":         doc_id,
+            "league":         league,
+            "source_url":     config["source_url"],
+            "chunk_type":     "fixed_size",
+            # "chunk_index":    i,
+            # "chunk_size":     CHUNK_SIZE,
+            # "chunk_overlap":  CHUNK_OVERLAP,
+            # Fields kept for schema compatibility with the hybrid version;
+            # values are None because fixed-size chunks don't map 1-to-1
+            # to a single rule/section boundary.
+            "rule_number":    None,
+            "rule_title":     None,
+            "section":        None,
+            "section_title":  None,
+            "headings_path":  [],
+            "page_numbers":   [],
         }
 
-        chunk = RulebookChunk(
+        processed_chunks.append(RulebookChunk(
             chunk_id=chunk_id,
             doc_id=doc_id,
             text=enriched_text,
             metadata=metadata,
-        )
+        ))
 
-        processed_chunks.append(chunk)
-
-    print(f"  Skipped (noise/index): {skipped_count}")
-    print(f"  Final usable chunks: {len(processed_chunks)}")
-
+    print(f"  Final usable fixed-size chunks: {len(processed_chunks)}")
     return processed_chunks
 
 # print a summary of the chunk distribution
@@ -291,9 +326,18 @@ def print_chunk_stats(chunks: list[RulebookChunk]) -> None:
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    print("=" * 60)
+    print(f"STEP 0: Loading tokenizer ({TOKENIZER_MODEL})")
+    print("=" * 60)
+    # Load once here; passing it to process_rulebook avoids re-downloading
+    # the tokenizer vocabulary for every PDF.
+    tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_MODEL)
+    print(f"  Tokenizer ready. Chunk size: {CHUNK_SIZE} tokens, overlap: {CHUNK_OVERLAP} tokens.")
+
     all_chunks: list[RulebookChunk] = []
     for config in RULEBOOKS:
-        chunks = process_rulebook(config)
+        chunks = process_rulebook(config, tokenizer)
         all_chunks.extend(chunks)
 
     print_chunk_stats(all_chunks)
@@ -303,7 +347,7 @@ def main():
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         json.dump(output_data, f, ensure_ascii=False, indent=2)
 
-    print(f"\n✓ Saved {len(all_chunks)} chunks to: {OUTPUT_FILE}")
+    print(f"\n✓ Saved {len(all_chunks)} fixed-size chunks to: {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

@@ -261,12 +261,12 @@ class BasketballRetriever:
         self._log("RRF fusion...")
         rrf_results = self._rrf(dense_results, sparse_results, k=RRF_K)
         self._log(f"  {len(rrf_results)} unique candidates after RRF")
-        # rrf_pool = rrf_results[:mmr_candidates]
+        
+        # implementing MMR:
+        rrf_pool = rrf_results[:mmr_candidates]
 
-        # self._log(f"MMR (lambda={mmr_lambda}, selecting {mmr_select} from {len(rrf_pool)})...")
-        # mmr_results = self._mmr(query_dense=dense,rrf_results=rrf_pool,top_n=mmr_select,lambda_param=mmr_lambda,)
-        mmr_results = rrf_results[:mmr_select]  # for now not using mmr
-
+        self._log(f"MMR (lambda={mmr_lambda}, selecting {mmr_select} from {len(rrf_pool)})...")
+        mmr_results = self._mmr(query_dense=dense,rrf_results=rrf_pool,top_n=mmr_select,lambda_param=mmr_lambda,)
 
         self._log(f"CrossEncoder re-ranking {len(mmr_results)} candidates → top {final_n}...")
         final = self._cross_encoder_rerank(query, mmr_results, final_n=final_n)

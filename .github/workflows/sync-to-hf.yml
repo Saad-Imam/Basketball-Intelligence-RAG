@@ -28,7 +28,7 @@ jobs:
 
           # 3. Initialize a brand new, empty Git repository locally on the runner
           git init
-          git checkout -b main
+          git checkout -b V1.2
 
           # 4. Configure Git
           git config user.email "action@github.com"

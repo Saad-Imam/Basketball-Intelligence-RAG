@@ -76,6 +76,31 @@ def _format_chunk_for_context(chunk: dict, index: int) -> str:
     return f"[Source {index} — {label}]\n{text}"
 
 
+def _format_chunk_for_context_fixed_size(chunk: dict, index: int) -> str:
+    """
+
+    Fixed-size chunks don't carry rule/section metadata (those fields are
+    None), so the label is simpler: just the league or term name.
+    The chunk text itself already contains the context prefix that was
+    prepended during preprocessing (e.g. "NBA Rulebook:\n\n...")
+    """
+    meta       = chunk.get("metadata", {})
+    layer_name = meta.get("layer_name", "")
+    league     = meta.get("league", "")
+    term       = meta.get("term", "")
+    chunk_idx  = meta.get("chunk_index", index - 1)
+
+    if layer_name == "rulebook":
+        label = f"{league} Rulebook" if league else "Rulebook"
+    else:
+        label = f"HoopStudent Basketball Encyclopedia"
+        if term:
+            label += f" | {term}"
+
+    text = chunk.get("text", "").strip()
+    return f"[Source {index} — {label}]\n{text}"
+
+
 def build_prompt(query: str, context_chunks: list[dict]) -> tuple[str, str]:
     """
     Builds the full  prompt.
@@ -89,9 +114,9 @@ def build_prompt(query: str, context_chunks: list[dict]) -> tuple[str, str]:
       - The context is numbered so cross-referencing is unambiguous.
       - "concise but complete" nudges against both truncation and rambling.
     """
-    # Format all context chunks
+    # Format all context chunks using the fixed-size chunk label builder
     context_blocks = "\n\n".join(
-        _format_chunk_for_context(chunk, i + 1)
+        _format_chunk_for_context_fixed_size(chunk, i + 1)
         for i, chunk in enumerate(context_chunks)
     )
     # modified prmpt

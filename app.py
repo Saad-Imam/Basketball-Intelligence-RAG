@@ -215,88 +215,137 @@ def ask(body: AskRequest):
 @app.get("/api/evaluate")
 async def run_evaluation():
     """
-    Runs the fixed 15-query test set and streams results via SSE.
+    Runs the fixed test set and streams results via SSE.
+
+    Why asyncio.to_thread + a queue?
+    ---------------------------------
+    The rate limiter inside RAGJudge._llm() calls time.sleep() (a blocking
+    sleep) which freezes the entire asyncio event loop.  When the loop is
+    frozen, the SSE generator cannot yield anything.  After ~60 s of silence
+    HuggingFace's nginx proxy declares the connection idle and drops it,
+    which is what was causing the "stream error" in the browser.
+
+    The fix has two parts:
+      1. asyncio.to_thread  — runs every blocking call (retrieve / generate /
+         evaluate) in a worker thread, keeping the event loop free.
+      2. SSE keepalive comments — while waiting for the next result the loop
+         checks the queue every 15 s and sends ": keepalive" if it's empty.
+         SSE comment lines are ignored by the browser but they flush bytes
+         through nginx, resetting the proxy's idle timer.
     """
     from src.evaluation.evaluate import TEST_QUERIES
-    async def event_stream() -> AsyncGenerator[str, None]: # returns SEE formatted strings for real-time updates
-        def sse(data: dict) -> str: # helper to format data as SSE events
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        def sse(data: dict) -> str:
             return f"data: {json.dumps(data)}\n\n"
- 
+
         retriever = get_retriever()
         generator = get_generator()
         judge     = get_judge()
- 
-        total = len(TEST_QUERIES)
-        yield sse({"type": "start", "total": total})
- 
-        all_results = []
- 
-        for i, query in enumerate(TEST_QUERIES):
-            # Notify frontend which query we're running
-            yield sse({"type": "progress", "index": i, "total": total, "query": query})
- 
-            try:
-                # Retrieve + generate
-                chunks = retriever.retrieve(query, final_n=5)
-                gen    = generator.generate(query, chunks)
- 
-                # Evaluate
-                ev = judge.evaluate(
-                    query=query,
-                    answer=gen.answer,
-                    context_chunks=gen.context_chunks,
-                )
- 
-                result_payload = {
-                    "type":        "result",
-                    "index":       i,
-                    "query":       query,
-                    "answer":      gen.answer,
-                    "faithfulness": round(ev.faithfulness.score, 4),
-                    "relevancy":    round(ev.relevancy.score, 4),
-                    "claims": [
-                        {"claim": c.claim, "supported": c.supported, "reasoning": c.reasoning}
-                        for c in ev.faithfulness.claims
-                    ],
-                    "questions": [
-                        {"question": q, "similarity": round(s, 4)}
-                        for q, s in zip(
-                            ev.relevancy.generated_questions,
-                            ev.relevancy.similarities,
-                        )
-                    ],
-                }
-                all_results.append(result_payload)
-                yield sse(result_payload)
- 
-            except Exception as e:
-                log.exception(f"Eval failed for query {i}: {query}")
-                yield sse({"type": "error", "index": i, "query": query, "message": str(e)})
 
-            # Add buffer due to api rate limits being reached
-            if i < total - 1:
-                yield sse({"type": "waiting", "seconds": 60})
-                await asyncio.sleep(60)    
- 
-        # Final summary
-        if all_results:
-            avg_faith = sum(r["faithfulness"] for r in all_results) / len(all_results)
-            avg_rel   = sum(r["relevancy"]    for r in all_results) / len(all_results)
-        else:
-            avg_faith = avg_rel = 0.0
- 
-        yield sse({
-            "type":             "summary",
-            "avg_faithfulness": round(avg_faith, 4),
-            "avg_relevancy":    round(avg_rel, 4),
-            "results":          all_results,
-        })
- 
+        total = len(TEST_QUERIES)
+        queue: asyncio.Queue = asyncio.Queue()
+
+        # ------------------------------------------------------------------
+        # Worker coroutine — runs the full eval loop and pushes messages
+        # into the queue.  Each blocking call is wrapped in asyncio.to_thread
+        # so the event loop (and SSE keepalives) stay responsive during
+        # rate-limiter sleeps of 40-50 seconds.
+        # ------------------------------------------------------------------
+        async def run_eval() -> None:
+            all_results = []
+
+            for i, query in enumerate(TEST_QUERIES):
+                await queue.put({"type": "progress", "index": i,
+                                 "total": total, "query": query})
+                try:
+                    chunks = await asyncio.to_thread(
+                        retriever.retrieve, query, final_n=5
+                    )
+                    gen = await asyncio.to_thread(
+                        generator.generate, query, chunks
+                    )
+                    ev = await asyncio.to_thread(
+                        judge.evaluate,
+                        query=query,
+                        answer=gen.answer,
+                        context_chunks=gen.context_chunks,
+                    )
+
+                    result_payload = {
+                        "type":         "result",
+                        "index":        i,
+                        "query":        query,
+                        "answer":       gen.answer,
+                        "faithfulness": round(ev.faithfulness.score, 4),
+                        "relevancy":    round(ev.relevancy.score, 4),
+                        "claims": [
+                            {"claim": c.claim, "supported": c.supported,
+                             "reasoning": c.reasoning}
+                            for c in ev.faithfulness.claims
+                        ],
+                        "questions": [
+                            {"question": q, "similarity": round(s, 4)}
+                            for q, s in zip(
+                                ev.relevancy.generated_questions,
+                                ev.relevancy.similarities,
+                            )
+                        ],
+                    }
+                    all_results.append(result_payload)
+                    await queue.put(result_payload)
+
+                except Exception as e:
+                    log.exception(f"Eval failed for query {i}: {query}")
+                    await queue.put({"type": "error", "index": i,
+                                     "query": query, "message": str(e)})
+
+            # Final summary — computed here so the SSE loop just forwards it
+            if all_results:
+                avg_faith = sum(r["faithfulness"] for r in all_results) / len(all_results)
+                avg_rel   = sum(r["relevancy"]    for r in all_results) / len(all_results)
+            else:
+                avg_faith = avg_rel = 0.0
+
+            await queue.put({
+                "type":             "summary",
+                "avg_faithfulness": round(avg_faith, 4),
+                "avg_relevancy":    round(avg_rel, 4),
+                "results":          all_results,
+            })
+
+            await queue.put(None)   # sentinel — tells the reader to stop
+
+        # ------------------------------------------------------------------
+        # SSE reader loop — drains the queue and sends keepalives when idle
+        # ------------------------------------------------------------------
+        eval_task = asyncio.create_task(run_eval())
+        yield sse({"type": "start", "total": total})
+
+        while True:
+            try:
+                # Wait up to 15 s for the next message.
+                # If nothing arrives the worker is blocked inside a rate-limiter
+                # sleep — send a keepalive comment to prevent proxy timeout.
+                msg = await asyncio.wait_for(queue.get(), timeout=15.0)
+            except asyncio.TimeoutError:
+                # ": keepalive" is a valid SSE comment: browsers ignore it,
+                # but it flushes bytes through nginx and resets its idle timer.
+                yield ": keepalive\n\n"
+                continue
+
+            if msg is None:
+                break       # sentinel received — eval is complete
+
+            yield sse(msg)
+
+        await eval_task     # propagate any unexpected exceptions from the worker
+
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control":    "no-cache",
+            "Cache-Control":     "no-cache",
             "X-Accel-Buffering": "no",   # disable nginx buffering on HF Spaces
         },
     )

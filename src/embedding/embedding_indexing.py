@@ -14,12 +14,16 @@ from pinecone import Pinecone, ServerlessSpec
 load_dotenv()
 
 CHUNK_FILES = [
-    "corpus/processed/layer1_rulebook_chunks.json",
-    "corpus/processed/layer2_chunks.json"
+    "corpus/processed/layer1_rulebook_chunks_fixed.json",
+    "corpus/processed/layer2_chunks_fixed.json"
 ]
 
-# Pinecone settings
-INDEX_NAME = "basketball-rag-hybrid-bge"       
+# We reuse the same index as the hybrid experiment and separate the two
+# chunking strategies with Pinecone namespaces.
+# hybrid chunks live in the default ("") namespace;
+# fixed-size chunks live in the "fixed-size" namespace.
+INDEX_NAME = "basketball-rag-hybrid-bge"
+NAMESPACE  = "fixed-size"
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
 
 # BGE-M3 settings
@@ -206,8 +210,8 @@ def upsert_to_pinecone(pc: Pinecone, index_name: str, chunks: list[dict], dense_
             }
             records.append(record)
 
-        # Upsert the batch
-        index.upsert(vectors=records)
+        # Upsert the batch into the fixed-size namespace
+        index.upsert(vectors=records, namespace=NAMESPACE)
         total_upserted += len(records)
 
         current_batch = batch_idx // batch_size + 1
@@ -222,8 +226,6 @@ def upsert_to_pinecone(pc: Pinecone, index_name: str, chunks: list[dict], dense_
 # STEP 5: Verify the index after upserting
 def verify_index(pc: Pinecone, index_name: str) -> None:
     """
-    Prints index stats to confirm everything was upserted correctly.
-    Also runs a quick test query to verify hybrid search works.
     """
     index = pc.Index(index_name)
     stats = index.describe_index_stats()
@@ -231,9 +233,12 @@ def verify_index(pc: Pinecone, index_name: str) -> None:
     print(f"\n{'='*60}")
     print(f"INDEX VERIFICATION — '{index_name}'")
     print(f"{'='*60}")
-    print(f"Total vectors: {stats.total_vector_count}")
-    print(f"Dimension:     {stats.dimension}")
-    print(f"Namespaces:    {stats.namespaces}")
+    print(f"Total vectors across all namespaces: {stats.total_vector_count}")
+    print(f"Dimension: {stats.dimension}")
+    print(f"\nPer-namespace breakdown:")
+    for ns_name, ns_stats in stats.namespaces.items():
+        label = f"  '{ns_name}'" if ns_name else "  '' (default / hybrid)"
+        print(f"{label}: {ns_stats.vector_count} vectors")
 
 def main():
     # Validate API key
@@ -294,7 +299,7 @@ def main():
     # This is important: if Pinecone upsert fails halfway, you don't want to
     # re-run the 2+ hour embedding step. Save first, upsert from file if needed.
     # -----------------------------------------------------------------------
-    checkpoint_path = Path("corpus/embeddings_checkpoint.json")
+    checkpoint_path = Path("corpus/embeddings_checkpoint_fixed.json")
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"\n  Saving embedding checkpoint to {checkpoint_path}...")
@@ -325,6 +330,7 @@ def main():
 
     print("\n✓ Indexing complete.")
     print(f"  Index name: '{INDEX_NAME}'")
+    print(f"  Namespace:  '{NAMESPACE}'")
 
 
 # ---------------------------------------------------------------------------
@@ -344,7 +350,7 @@ def upsert_from_checkpoint():
     chunk_files = CHUNK_FILES
     all_chunks = load_all_chunks(chunk_files)
 
-    checkpoint_path = "corpus/embeddings_checkpoint.json"
+    checkpoint_path = "corpus/embeddings_checkpoint_fixed.json"
     with open(checkpoint_path, "r") as f:
         checkpoint = json.load(f)
 

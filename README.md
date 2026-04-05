@@ -85,32 +85,6 @@ To switch strategies locally, check out the relevant branch.
 
 ---
 
-## Repository Structure
-
-```
-Basketball-Intelligence-RAG/
-├── .github/
-│   └── workflows/
-│       └── sync-to-hf.yml       # Auto-syncs main to Hugging Face Spaces
-├── corpus/
-│   └── raw/                     # Rulebook PDFs and scraped JSON (not committed)
-├── src/
-│   ├── scraper.py               # HoopStudent scraper
-│   ├── preprocess_layer1.py     # Docling-based PDF extraction and chunking
-│   ├── preprocess_layer2.py     # JSON-to-chunk conversion for Layer 2
-│   ├── semantic_chunker.py      # Percentile-breakpoint semantic chunker
-│   ├── embed_and_upsert.py      # BGE-M3 embedding + Pinecone upsert with checkpointing
-│   ├── retriever.py             # Four-stage retrieval pipeline
-│   ├── generator.py             # Prompt construction and LLM call
-│   └── evaluate.py              # LLM-as-a-Judge evaluation framework
-├── static/                      # Frontend HTML/CSS/JS
-├── app.py                       # FastAPI application entry point
-├── Dockerfile
-└── requirements.txt
-```
-
----
-
 ## Key Design Decisions and Findings
 
 **Semantic chunking outperforms structure-based and fixed-window chunking.** The percentile-breakpoint algorithm groups sentences by topic shift, producing chunks that are densely focused on a single concept. This is the dominant performance variable — the step change in faithfulness between strategies (~10–15 percentage points) is far larger than any difference introduced by changing the retrieval mode.

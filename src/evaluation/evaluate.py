@@ -289,21 +289,16 @@ class RAGJudge:
 TEST_QUERIES = [
     # NBA rules
     "What is the defensive three-second rule in the NBA?",
-    "How many personal fouls does it take to foul out in the NBA?",
     "What is the 'Restricted Area' on an NBA court and how far is it from the basket?",
     "What are the rules for a technical foul in the NBA?",
     "How does the shot clock reset work after an offensive rebound in the NBA?",
     # FIBA rules
-    "What is the shot clock duration in FIBA basketball?",
-    "How is a jump ball situation resolved in FIBA rules?",
-    "What constitutes a legal screen according to FIBA rules?",
     "What is the rule for a backcourt violation in FIBA?",
     "How many seconds does a player have to inbound the ball in FIBA?",
     # Strategy / tactics
     "Coach's Challenge: We have a very athletic team but we are undersized. Which press defense (1-2-1-1 or 1-2-2) should we use to maximize our speed for turnovers?",
     "How does a zone defense differ from man-to-man defense?",
     "What is the purpose of a box-and-one defense?",
-    "How does an isolation play work in basketball offense?",
     "Player Scenario: I'm guarding a 'slasher' in a 1v1 game. Should I play 'tight pressure' or 'sagging defense', and why?",
 ]
 

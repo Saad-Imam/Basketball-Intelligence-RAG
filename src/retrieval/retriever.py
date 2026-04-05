@@ -9,6 +9,7 @@ from sentence_transformers import CrossEncoder
 load_dotenv()
 
 INDEX_NAME        = "basketball-rag-hybrid-bge"
+NAMESPACE         = "semantic"   # vectors for fixed-size-chunking
 BGE_MODEL_NAME    = "BAAI/bge-m3"
 CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 PINECONE_API_KEY  = os.getenv("PINECONE_API_KEY")
@@ -112,6 +113,7 @@ class BasketballRetriever:
             sparse_vector=scaled_sparse,
             top_k=top_k,
             include_metadata=True,
+            namespace=NAMESPACE,
         )
         if metadata_filter:
             query_kwargs["filter"] = metadata_filter
@@ -259,13 +261,11 @@ class BasketballRetriever:
         self._log("RRF fusion...")
         rrf_results = self._rrf(dense_results, sparse_results, k=RRF_K)
         self._log(f"  {len(rrf_results)} unique candidates after RRF")
-        
-        # implementing MMR:
-        rrf_pool = rrf_results[:mmr_candidates]
+        # rrf_pool = rrf_results[:mmr_candidates]
 
-        self._log(f"MMR (lambda={mmr_lambda}, selecting {mmr_select} from {len(rrf_pool)})...")
+        # self._log(f"MMR (lambda={mmr_lambda}, selecting {mmr_select} from {len(rrf_pool)})...")
         # mmr_results = self._mmr(query_dense=dense,rrf_results=rrf_pool,top_n=mmr_select,lambda_param=mmr_lambda,)
-        mmr_results = self._mmr(query_dense=dense,rrf_results=rrf_pool,top_n=mmr_select,lambda_param=mmr_lambda,)
+        mmr_results = rrf_results[:mmr_select]  # for now not using mmr
 
 
         self._log(f"CrossEncoder re-ranking {len(mmr_results)} candidates → top {final_n}...")
@@ -311,18 +311,22 @@ if __name__ == "__main__":
 
         for i, r in enumerate(results, 1):
             meta = r["metadata"]
-            league     = meta.get("league", meta.get("source", ""))
+            league     = meta.get("league") or meta.get("source", "")
             layer_name = meta.get("layer_name", "")
-            # rule       = meta.get("rule_number", "")
-            # rule_title = meta.get("rule_title", "")
-            section    = meta.get("section", "")
-            term       = meta.get("term", "")       # Layer 2 field
+            section    = meta.get("section") or ""    # None → "" for fixed-size chunks
+            term       = meta.get("term", "")
+            chunk_type = meta.get("chunk_type", "")
 
-            # # Build a readable label depending on which layer the chunk came from
-            # if layer_name == "rulebook":
-            #     loc = f"{league} | {rule} {rule_title} | {section}".strip(" |")
-            # else:
-            #     loc = f"HoopStudent | {term} | {meta.get('chunk_type', '')}"
+            # Build a readable label that works for both hybrid and fixed-size chunks
+            if layer_name == "rulebook":
+                loc_parts = [p for p in [league, "Rulebook"] if p]
+                if section:
+                    loc_parts.append(section)
+                elif chunk_type:
+                    loc_parts.append(chunk_type)
+                loc = " | ".join(loc_parts)
+            else:
+                loc = f"HoopStudent | {term} | {chunk_type}"
 
             print(f"\n  [{i}] CE={r['cross_encoder_score']:+.4f} | RRF={r['rrf_score']:.4f}")
             print(f"       {loc}")

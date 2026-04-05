@@ -9,7 +9,7 @@ from sentence_transformers import CrossEncoder
 load_dotenv()
 
 INDEX_NAME        = "basketball-rag-hybrid-bge"
-NAMESPACE         = "fixed-size"   # vectors for fixed-size-chunking
+NAMESPACE         = "semantic"   # vectors for fixed-size-chunking
 BGE_MODEL_NAME    = "BAAI/bge-m3"
 CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 PINECONE_API_KEY  = os.getenv("PINECONE_API_KEY")
@@ -254,19 +254,19 @@ class BasketballRetriever:
 
         self._log(f"Dense search  (alpha=1.0, top_k={top_k_dense})...")
         dense_results  = self._pinecone_query(dense, sparse, alpha=1.0,top_k=top_k_dense,metadata_filter=metadata_filter)
-
+        
         self._log(f"Sparse search (alpha=0.0, top_k={top_k_sparse})...")
-        sparse_results = self._pinecone_query(dense, sparse, alpha=0.0,top_k=top_k_sparse,metadata_filter=metadata_filter)
-
+        # sparse_results = self._pinecone_query(dense, sparse, alpha=0.0,top_k=top_k_sparse,metadata_filter=metadata_filter)
+        sparse_results = []
         self._log("RRF fusion...")
         rrf_results = self._rrf(dense_results, sparse_results, k=RRF_K)
         self._log(f"  {len(rrf_results)} unique candidates after RRF")
-        # rrf_pool = rrf_results[:mmr_candidates]
+        
+        # implementing MMR:
+        rrf_pool = rrf_results[:mmr_candidates]
 
-        # self._log(f"MMR (lambda={mmr_lambda}, selecting {mmr_select} from {len(rrf_pool)})...")
-        # mmr_results = self._mmr(query_dense=dense,rrf_results=rrf_pool,top_n=mmr_select,lambda_param=mmr_lambda,)
-        mmr_results = rrf_results[:mmr_select]  # for now not using mmr
-
+        self._log(f"MMR (lambda={mmr_lambda}, selecting {mmr_select} from {len(rrf_pool)})...")
+        mmr_results = self._mmr(query_dense=dense,rrf_results=rrf_pool,top_n=mmr_select,lambda_param=mmr_lambda,)
 
         self._log(f"CrossEncoder re-ranking {len(mmr_results)} candidates → top {final_n}...")
         final = self._cross_encoder_rerank(query, mmr_results, final_n=final_n)

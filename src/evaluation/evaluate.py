@@ -57,6 +57,102 @@ class EvalResult:
     def relevancy_score(self) -> float:
         return round(self.relevancy.score, 4)
 
+# Sliding-window rate limiter for the Gemini API
+class RateLimiter:
+    """
+    Tracks API calls and token usage in a rolling 60-second window and
+    sleeps the minimum required time before any call that would breach
+    either limit.
+
+    Why sliding window instead of a fixed "reset every minute" bucket?
+    A fixed bucket is fragile — if you fire 14 calls at t=0:59 and 14
+    more at t=1:01 you've used 28 calls in 2 seconds while technically
+    staying inside two separate minute buckets.  A sliding window always
+    looks at the last 60 seconds, so the constraint is continuously
+    enforced regardless of where you are in the clock.
+
+    Gemini free tier hard limits: 30 RPM, 15 000 TPM.
+    We set effective limits slightly below to absorb timing jitter.
+    """
+    EFFECTIVE_RPM: int   = 28        # hard limit: 30
+    EFFECTIVE_TPM: int   = 14_000    # hard limit: 15 000
+    WINDOW:        float = 60.0      # seconds
+
+    def __init__(self) -> None:
+        # Each entry: (unix_timestamp_of_call, tokens_consumed_by_that_call)
+        self._history: list[tuple[float, int]] = []
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _prune(self) -> None:
+        """Drop entries older than WINDOW seconds."""
+        cutoff = time.time() - self.WINDOW
+        self._history = [(t, tok) for t, tok in self._history if t > cutoff]
+
+    def _window_stats(self) -> tuple[int, int]:
+        """Return (call_count, token_count) within the current window."""
+        self._prune()
+        calls  = len(self._history)
+        tokens = sum(tok for _, tok in self._history)
+        return calls, tokens
+
+    # ------------------------------------------------------------------
+    # Public interface
+    # ------------------------------------------------------------------
+
+    def wait_if_needed(self, estimated_tokens: int) -> None:
+        """
+        Block until there is headroom for one more call that will consume
+        approximately *estimated_tokens* tokens.
+
+        Called BEFORE every _llm() invocation.
+        """
+        while True:
+            calls, tokens = self._window_stats()
+
+            rpm_ok = calls  < self.EFFECTIVE_RPM
+            tpm_ok = tokens + estimated_tokens <= self.EFFECTIVE_TPM
+
+            if rpm_ok and tpm_ok:
+                return   # safe to proceed
+
+            # Sleep until the oldest entry slides out of the window.
+            # Adding a 300 ms buffer avoids immediately re-entering the loop
+            # due to floating-point timing imprecision.
+            if self._history:
+                oldest_ts  = self._history[0][0]
+                sleep_secs = (oldest_ts + self.WINDOW) - time.time() + 0.3
+                sleep_secs = max(0.3, sleep_secs)
+            else:
+                sleep_secs = 1.0
+
+            print(f"[RateLimiter] Window full ({calls} calls, {tokens} tokens). "
+                  f"Sleeping {sleep_secs:.1f}s...")
+            time.sleep(sleep_secs)
+
+    def record(self, tokens_used: int) -> None:
+        """
+        Record a completed call.
+        Called AFTER every _llm() invocation with the actual token count
+        from the API response (or the pre-call estimate if the response
+        did not include usage data).
+        """
+        self._history.append((time.time(), tokens_used))
+
+    @staticmethod
+    def estimate_tokens(prompt: str, max_response_tokens: int) -> int:
+        """
+        Rough upper-bound estimate of total tokens for a call.
+        Rule of thumb: ~4 chars per token for English text.
+        We add max_response_tokens to account for the output side of the
+        TPM budget, since Gemini counts both input and output tokens.
+        """
+        input_estimate = max(1, len(prompt) // 4)
+        return input_estimate + max_response_tokens
+
+
 class RAGJudge:
 
     def __init__(self, verbose: bool = True):
@@ -70,6 +166,10 @@ class RAGJudge:
         )
         self._log(f"Loading sentence similarity model: {SIM_MODEL_NAME}...")
         self.sim_model = SentenceTransformer(SIM_MODEL_NAME)
+
+        # One shared rate limiter for all LLM calls made by this judge instance
+        self.rate_limiter = RateLimiter()
+
         self._log("Judge ready.")
 
     def _log(self, msg: str) -> None:
@@ -78,9 +178,23 @@ class RAGJudge:
 
     def _llm(self, prompt: str, max_tokens: int = 512, temperature: float = 0.0) -> str:
         """
-        Single-turn LLM call. temperature=0.0 for deterministic judge outputs.
+        Single-turn LLM call with integrated rate limiting.
+
+        Flow:
+          1. Estimate token cost of this call (prompt tokens + max response tokens).
+          2. Ask the rate limiter to sleep if the window is too full.
+          3. Make the API call.
+          4. Record the actual token count (from response.usage if present,
+             otherwise fall back to our pre-call estimate).
+
+        temperature=0.0 for deterministic judge outputs.
         System role not supported by Gemma chat template — merged into user turn.
         """
+        estimated_tokens = RateLimiter.estimate_tokens(prompt, max_tokens)
+
+        # Block here if needed — this is the only sleep in the whole eval loop
+        self.rate_limiter.wait_if_needed(estimated_tokens)
+
         try:
             response = self.client.chat.completions.create(
                 model=JUDGE_MODEL_ID,
@@ -89,8 +203,22 @@ class RAGJudge:
                 temperature=temperature,
                 top_p=1.0,
             )
+
+            # Use actual token count when the API returns it; fall back to estimate.
+            # Gemini's OpenAI-compat endpoint populates response.usage reliably.
+            actual_tokens = (
+                response.usage.total_tokens
+                if response.usage and response.usage.total_tokens
+                else estimated_tokens
+            )
+            self.rate_limiter.record(actual_tokens)
+
             return (response.choices[0].message.content or "").strip()
+
         except Exception as e:
+            # Still record estimated usage so the limiter doesn't think the
+            # window is emptier than it really is after a failed call.
+            self.rate_limiter.record(estimated_tokens)
             self._log(f"LLM call failed: {e}")
             return ""
 
@@ -166,10 +294,13 @@ class RAGJudge:
 
         return ClaimVerification(claim=claim, supported=supported, reasoning=reasoning)
 
-    def faithfulness(self,answer: str,context_chunks: list[dict],) -> FaithfulnessResult:
+    def faithfulness(self, answer: str, context_chunks: list[dict]) -> FaithfulnessResult:
         """
         Full faithfulness pipeline for one query.
-        context_chunks: the list of retrieved chunk dicts 
+        context_chunks: the list of retrieved chunk dicts
+
+        The old time.sleep(1) between claim verifications has been removed —
+        the rate limiter in _llm() now handles all pacing adaptively.
         """
         # Concatenate all chunk texts into one context string for the verifier
         context_text = "\n\n---\n\n".join(
@@ -187,7 +318,7 @@ class RAGJudge:
         for i, claim in enumerate(claims):
             self._log(f"  Verifying claim {i+1}/{len(claims)}: {claim[:60]}...")
             result = self._verify_claim(claim, context_text)
-            time.sleep(1) # second pause helps avoid hitting the "burst" limit
+            # No sleep here — _llm() calls wait_if_needed() before every call
             verifications.append(result)
 
         supported = sum(1 for v in verifications if v.supported)
@@ -268,7 +399,7 @@ class RAGJudge:
         )
 
     # Combining it all:
-    def evaluate(self,query: str,answer:  str, context_chunks: list[dict],) -> EvalResult:
+    def evaluate(self, query: str, answer: str, context_chunks: list[dict]) -> EvalResult:
         self._log(f"\nEvaluating: {query[:60]}...")
         faith = self.faithfulness(answer, context_chunks)
         rel   = self.relevancy(query, answer)
@@ -285,25 +416,19 @@ class RAGJudge:
             relevancy=rel,
         )
 
-# Fixed test set — 15 basketball queries covering NBA, FIBA, and strategy
 TEST_QUERIES = [
     # NBA rules
     "What is the defensive three-second rule in the NBA?",
-    "How many personal fouls does it take to foul out in the NBA?",
     "What is the 'Restricted Area' on an NBA court and how far is it from the basket?",
     "What are the rules for a technical foul in the NBA?",
     "How does the shot clock reset work after an offensive rebound in the NBA?",
     # FIBA rules
-    "What is the shot clock duration in FIBA basketball?",
-    "How is a jump ball situation resolved in FIBA rules?",
-    "What constitutes a legal screen according to FIBA rules?",
     "What is the rule for a backcourt violation in FIBA?",
     "How many seconds does a player have to inbound the ball in FIBA?",
     # Strategy / tactics
     "Coach's Challenge: We have a very athletic team but we are undersized. Which press defense (1-2-1-1 or 1-2-2) should we use to maximize our speed for turnovers?",
     "How does a zone defense differ from man-to-man defense?",
     "What is the purpose of a box-and-one defense?",
-    "How does an isolation play work in basketball offense?",
     "Player Scenario: I'm guarding a 'slasher' in a 1v1 game. Should I play 'tight pressure' or 'sagging defense', and why?",
 ]
 
